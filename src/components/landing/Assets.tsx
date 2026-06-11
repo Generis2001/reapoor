@@ -1,5 +1,6 @@
 import { USDCIcon, EURCIcon } from "@/components/ui/TokenIcon";
 import { CheckCircle } from "lucide-react";
+import type { ProtocolMetrics } from "@/lib/metrics";
 
 const usdcPoints = [
   "Issued and backed 1:1 by Circle Internet Financial",
@@ -17,7 +18,15 @@ const eurcPoints = [
   "Reward denominator for EURC staking and LP positions",
 ];
 
-export function Assets() {
+interface Props {
+  metrics: Pick<ProtocolMetrics, "usdcStakingApy" | "eurcStakingApy" | "usdcLpApy" | "eurcLpApy">;
+}
+
+function fmtApy(n: number) {
+  return `${n.toFixed(1)}%`;
+}
+
+export function Assets({ metrics }: Props) {
   return (
     <section id="assets" className="py-28 bg-white">
       <div className="max-w-7xl mx-auto px-6">
@@ -48,11 +57,11 @@ export function Assets() {
               </div>
               <div className="relative grid grid-cols-2 gap-4">
                 <div className="bg-white/10 rounded-xl p-3">
-                  <div className="text-xl font-bold">8.0%</div>
+                  <div className="text-xl font-bold">{fmtApy(metrics.usdcStakingApy)}</div>
                   <div className="text-blue-200 text-xs">Staking APY</div>
                 </div>
                 <div className="bg-white/10 rounded-xl p-3">
-                  <div className="text-xl font-bold">9.0%</div>
+                  <div className="text-xl font-bold">{fmtApy(metrics.usdcLpApy)}</div>
                   <div className="text-blue-200 text-xs">LP APY</div>
                 </div>
               </div>
@@ -89,11 +98,11 @@ export function Assets() {
               </div>
               <div className="relative grid grid-cols-2 gap-4">
                 <div className="bg-white/10 rounded-xl p-3">
-                  <div className="text-xl font-bold">7.5%</div>
+                  <div className="text-xl font-bold">{fmtApy(metrics.eurcStakingApy)}</div>
                   <div className="text-sky-200 text-xs">Staking APY</div>
                 </div>
                 <div className="bg-white/10 rounded-xl p-3">
-                  <div className="text-xl font-bold">8.5%</div>
+                  <div className="text-xl font-bold">{fmtApy(metrics.eurcLpApy)}</div>
                   <div className="text-sky-200 text-xs">LP APY</div>
                 </div>
               </div>

@@ -4,39 +4,85 @@ import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { USDCIcon, EURCIcon } from "@/components/ui/TokenIcon";
 import { ArrowRight, TrendingUp, Users, DollarSign, Activity } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CIRCLE_FAUCET_URL } from "@/lib/config";
+import { useProtocolMetrics } from "@/hooks/useProtocolMetrics";
 
-const STATS = [
-  { label: "Total Value Locked", value: "$4.2M", icon: DollarSign, prefix: "" },
-  { label: "Total Deposits", value: "$6.8M", icon: TrendingUp, prefix: "" },
-  { label: "Rewards Distributed", value: "$128K", icon: Activity, prefix: "" },
-  { label: "Active Users", value: "2,341", icon: Users, prefix: "" },
-];
+function formatUSD(value: number): string {
+  if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(2)}M`;
+  if (value >= 1_000)     return `$${(value / 1_000).toFixed(1)}K`;
+  if (value > 0)          return `$${value.toFixed(2)}`;
+  return "$0";
+}
 
-function AnimatedNumber({ target }: { target: string }) {
-  const [display, setDisplay] = useState("0");
+function formatCount(value: number): string {
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+  if (value >= 1_000)     return value.toLocaleString("en-US");
+  return value.toString();
+}
+
+function AnimatedNumber({ value, formatter }: { value: number; formatter: (n: number) => string }) {
+  const [display, setDisplay] = useState(formatter(0));
+  const prevRef = useRef(0);
+  const frameRef = useRef<ReturnType<typeof requestAnimationFrame> | null>(null);
+
   useEffect(() => {
-    let start = 0;
-    const cleaned = target.replace(/[$,KM]/g, "");
-    const end = parseFloat(cleaned);
-    if (isNaN(end)) { setDisplay(target); return; }
-    const duration = 1500;
-    const step = 30;
-    const increment = end / (duration / step);
-    const timer = setInterval(() => {
-      start += increment;
-      if (start >= end) { setDisplay(target); clearInterval(timer); return; }
-      const prefix = target.startsWith("$") ? "$" : "";
-      const suffix = target.endsWith("M") ? "M" : target.endsWith("K") ? "K" : "";
-      setDisplay(`${prefix}${start.toFixed(target.includes(".") ? 1 : 0)}${suffix}`);
-    }, step);
-    return () => clearInterval(timer);
-  }, [target]);
+    if (value === 0 && prevRef.current === 0) return;
+    const start = prevRef.current;
+    const end = value;
+    const duration = 1200;
+    const startTime = performance.now();
+
+    function tick(now: number) {
+      const progress = Math.min((now - startTime) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3); // ease-out cubic
+      const current = start + (end - start) * eased;
+      setDisplay(formatter(current));
+      if (progress < 1) {
+        frameRef.current = requestAnimationFrame(tick);
+      } else {
+        prevRef.current = end;
+      }
+    }
+
+    if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
+    frameRef.current = requestAnimationFrame(tick);
+    return () => { if (frameRef.current !== null) cancelAnimationFrame(frameRef.current); };
+  }, [value, formatter]);
+
   return <span>{display}</span>;
 }
 
 export function Hero() {
+  const { metrics, loading } = useProtocolMetrics();
+
+  const stats = [
+    {
+      label: "Total Value Locked",
+      value: metrics.tvl,
+      formatter: formatUSD,
+      icon: DollarSign,
+    },
+    {
+      label: "Total Deposits",
+      value: metrics.totalDeposits,
+      formatter: formatUSD,
+      icon: TrendingUp,
+    },
+    {
+      label: "Rewards Distributed",
+      value: metrics.rewardsDistributed,
+      formatter: formatUSD,
+      icon: Activity,
+    },
+    {
+      label: "Active Users",
+      value: metrics.activeUsers,
+      formatter: formatCount,
+      icon: Users,
+    },
+  ];
+
   return (
     <section className="relative min-h-screen flex items-center overflow-hidden bg-gradient-to-b from-slate-950 via-blue-950 to-slate-950">
       {/* Background grid */}
@@ -95,16 +141,30 @@ export function Hero() {
 
         {/* Stats bar */}
         <div className="mt-20 grid grid-cols-2 md:grid-cols-4 gap-4">
-          {STATS.map(({ label, value, icon: Icon }) => (
-            <div key={label} className="relative rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm p-5 text-center group hover:border-blue-500/40 hover:bg-white/8 transition-all">
+          {stats.map(({ label, value, formatter, icon: Icon }) => (
+            <div
+              key={label}
+              className="relative rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm p-5 text-center group hover:border-blue-500/40 hover:bg-white/8 transition-all"
+            >
               <Icon className="w-5 h-5 text-blue-400 mx-auto mb-2 opacity-70" />
               <div className="text-2xl font-bold text-white mb-1">
-                <AnimatedNumber target={value} />
+                {loading ? (
+                  <span className="inline-block w-16 h-6 bg-white/10 rounded animate-pulse" />
+                ) : (
+                  <AnimatedNumber value={value} formatter={formatter} />
+                )}
               </div>
               <div className="text-xs text-slate-400 tracking-wide">{label}</div>
             </div>
           ))}
         </div>
+
+        {/* Live indicator */}
+        {!loading && metrics.updatedAt > 0 && (
+          <p className="text-center text-xs text-slate-600 mt-4">
+            On-chain data · refreshes every 60s
+          </p>
+        )}
       </div>
     </section>
   );

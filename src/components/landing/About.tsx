@@ -1,5 +1,6 @@
 import { Shield, Zap, TrendingUp, Globe, Lock, BarChart3 } from "lucide-react";
 import { USDCIcon, EURCIcon } from "@/components/ui/TokenIcon";
+import type { ProtocolMetrics } from "@/lib/metrics";
 
 const features = [
   {
@@ -34,7 +35,15 @@ const features = [
   },
 ];
 
-export function About() {
+interface Props {
+  metrics: Pick<ProtocolMetrics, "usdcStakingApy" | "eurcStakingApy" | "usdcLpApy" | "eurcLpApy">;
+}
+
+function fmtApy(n: number) {
+  return `${n.toFixed(1)}%`;
+}
+
+export function About({ metrics }: Props) {
   return (
     <section id="about" className="py-28 bg-white">
       <div className="max-w-7xl mx-auto px-6">
@@ -65,20 +74,20 @@ export function About() {
           <div className="grid grid-cols-2 gap-4">
             <div className="p-6 rounded-2xl bg-gradient-to-br from-blue-600 to-blue-700 text-white">
               <USDCIcon size="lg" className="mb-4" />
-              <div className="text-3xl font-bold mb-1">8.0%</div>
+              <div className="text-3xl font-bold mb-1">{fmtApy(metrics.usdcStakingApy)}</div>
               <div className="text-blue-200 text-sm">USDC Staking APY</div>
             </div>
             <div className="p-6 rounded-2xl bg-gradient-to-br from-sky-500 to-blue-600 text-white">
               <EURCIcon size="lg" className="mb-4" />
-              <div className="text-3xl font-bold mb-1">7.5%</div>
+              <div className="text-3xl font-bold mb-1">{fmtApy(metrics.eurcStakingApy)}</div>
               <div className="text-sky-200 text-sm">EURC Staking APY</div>
             </div>
             <div className="p-6 rounded-2xl bg-blue-50 border border-blue-100">
-              <div className="text-3xl font-bold text-blue-700 mb-1">9.0%</div>
+              <div className="text-3xl font-bold text-blue-700 mb-1">{fmtApy(metrics.usdcLpApy)}</div>
               <div className="text-blue-600 text-sm font-medium">USDC LP APY</div>
             </div>
             <div className="p-6 rounded-2xl bg-blue-50 border border-blue-100">
-              <div className="text-3xl font-bold text-blue-700 mb-1">8.5%</div>
+              <div className="text-3xl font-bold text-blue-700 mb-1">{fmtApy(metrics.eurcLpApy)}</div>
               <div className="text-blue-600 text-sm font-medium">EURC LP APY</div>
             </div>
           </div>
