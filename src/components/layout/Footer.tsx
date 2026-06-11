@@ -62,7 +62,7 @@ export function Footer() {
                 </a>
               </li>
               <li>
-                <a href="https://explorer.arc-testnet.io" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
+                <a href="https://testnet.arcscan.app/" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
                   Arc Explorer ↗
                 </a>
               </li>
@@ -72,7 +72,7 @@ export function Footer() {
 
         <div className="border-t border-slate-800 pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
           <p className="text-xs text-slate-600">
-            © 2025 Reapoor. Deployed on Arc Testnet. For testing purposes only.
+            © 2026 Reapoor. Deployed on Arc Testnet. For testing purposes only.
           </p>
           <p className="text-xs text-slate-600">
             USDC and EURC are trademarks of Circle Internet Financial, LLC.

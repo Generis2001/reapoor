@@ -1,19 +1,26 @@
 "use client";
 
 import Link from "next/link";
-import { useAccount } from "wagmi";
+import { useAccount, useDisconnect } from "wagmi";
 import { usePrivy } from "@privy-io/react-auth";
 import { Button } from "@/components/ui/Button";
 import { shortAddress } from "@/lib/utils";
 import { Wallet, ChevronDown, LogOut, ExternalLink } from "lucide-react";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { ARCSCAN_ADDR } from "@/lib/config";
 
 export function Header() {
   const { address, isConnected } = useAccount();
   const { login, logout, ready } = usePrivy();
+  const { disconnect } = useDisconnect();
   const [dropOpen, setDropOpen] = useState(false);
+
+  const handleDisconnect = useCallback(async () => {
+    setDropOpen(false);
+    try { await logout(); } catch { /* ignore */ }
+    disconnect();
+  }, [logout, disconnect]);
   const [scrolled, setScrolled] = useState(false);
   const dropRef = useRef<HTMLDivElement>(null);
 
@@ -84,7 +91,7 @@ export function Header() {
                     <ExternalLink className="w-4 h-4" /> View on Arcscan
                   </a>
                   <button
-                    onClick={() => { logout(); setDropOpen(false); }}
+                    onClick={handleDisconnect}
                     className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-xl"
                   >
                     <LogOut className="w-4 h-4" /> Disconnect

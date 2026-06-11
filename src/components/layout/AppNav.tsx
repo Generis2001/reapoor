@@ -2,11 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useAccount } from "wagmi";
+import { useAccount, useDisconnect } from "wagmi";
 import { usePrivy } from "@privy-io/react-auth";
 import { cn, shortAddress } from "@/lib/utils";
 import { LayoutDashboard, Layers, Droplets, Gift, BookOpen, Wallet, LogOut, Menu, X, ExternalLink } from "lucide-react";
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Button } from "@/components/ui/Button";
 import { ARCSCAN_ADDR } from "@/lib/config";
 
@@ -22,7 +22,14 @@ export function AppNav() {
   const pathname = usePathname();
   const { address, isConnected } = useAccount();
   const { login, logout, ready } = usePrivy();
+  const { disconnect } = useDisconnect();
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  const handleDisconnect = useCallback(async () => {
+    setMobileOpen(false);
+    try { await logout(); } catch { /* ignore */ }
+    disconnect();
+  }, [logout, disconnect]);
 
   return (
     <>
@@ -76,7 +83,7 @@ export function AppNav() {
                 <ExternalLink className="w-3.5 h-3.5" /> View on Arcscan
               </a>
               <button
-                onClick={() => logout()}
+                onClick={handleDisconnect}
                 className="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-500 hover:bg-red-50 rounded-xl transition-colors"
               >
                 <LogOut className="w-3.5 h-3.5" /> Disconnect
@@ -137,7 +144,7 @@ export function AppNav() {
                   <div className="w-2 h-2 bg-emerald-400 rounded-full" />
                   <span className="font-mono text-slate-700">{shortAddress(address)}</span>
                 </div>
-                <button onClick={() => logout()} className="w-full px-4 py-3 text-sm text-red-500 flex items-center gap-2">
+                <button onClick={handleDisconnect} className="w-full px-4 py-3 text-sm text-red-500 flex items-center gap-2">
                   <LogOut className="w-4 h-4" /> Disconnect
                 </button>
               </div>
