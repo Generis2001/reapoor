@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useAccount, useDisconnect } from "wagmi";
+import { useAccount } from "wagmi";
 import { usePrivy } from "@privy-io/react-auth";
 import { cn, shortAddress } from "@/lib/utils";
 import { LayoutDashboard, Layers, Droplets, Gift, BookOpen, Wallet, LogOut, Menu, X, ExternalLink } from "lucide-react";
@@ -22,14 +22,12 @@ export function AppNav() {
   const pathname = usePathname();
   const { address, isConnected } = useAccount();
   const { login, logout, ready } = usePrivy();
-  const { disconnect } = useDisconnect();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const handleDisconnect = useCallback(async () => {
     setMobileOpen(false);
-    try { await logout(); } catch { /* ignore */ }
-    disconnect();
-  }, [logout, disconnect]);
+    await logout();
+  }, [logout]);
 
   return (
     <>

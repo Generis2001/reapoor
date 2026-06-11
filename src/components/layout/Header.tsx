@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useAccount, useDisconnect } from "wagmi";
+import { useAccount } from "wagmi";
 import { usePrivy } from "@privy-io/react-auth";
 import { Button } from "@/components/ui/Button";
 import { shortAddress } from "@/lib/utils";
@@ -13,14 +13,12 @@ import { ARCSCAN_ADDR } from "@/lib/config";
 export function Header() {
   const { address, isConnected } = useAccount();
   const { login, logout, ready } = usePrivy();
-  const { disconnect } = useDisconnect();
   const [dropOpen, setDropOpen] = useState(false);
 
   const handleDisconnect = useCallback(async () => {
     setDropOpen(false);
-    try { await logout(); } catch { /* ignore */ }
-    disconnect();
-  }, [logout, disconnect]);
+    await logout();
+  }, [logout]);
   const [scrolled, setScrolled] = useState(false);
   const dropRef = useRef<HTMLDivElement>(null);
 
