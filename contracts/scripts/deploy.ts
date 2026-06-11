@@ -1,45 +1,84 @@
-import { createWalletClient, createPublicClient, http, parseUnits } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
-import { arcTestnet } from "../../src/lib/chains";
+import { ethers, upgrades } from "hardhat";
 
-// Arc Testnet contract addresses — update as needed
-const USDC_ADDRESS = "0x3600000000000000000000000000000000000000" as `0x${string}`;
-const EURC_ADDRESS = "0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a" as `0x${string}`;
+// Arc Testnet token addresses
+const USDC = "0x3600000000000000000000000000000000000000";
+const EURC = "0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a";
+
+// Initial APYs in basis points (800 = 8%)
+const USDC_STAKING_APY = 800n;
+const EURC_STAKING_APY = 750n;
+const USDC_LIQ_APY = 900n;
+const EURC_LIQ_APY = 850n;
 
 async function main() {
-  const privateKey = process.env.DEPLOYER_PRIVATE_KEY as `0x${string}`;
-  if (!privateKey) throw new Error("DEPLOYER_PRIVATE_KEY env var required");
+  const [deployer] = await ethers.getSigners();
+  console.log("\nDeploying Reapoor contracts...");
+  console.log("Deployer:", deployer.address);
+  console.log("Balance:", ethers.formatEther(await ethers.provider.getBalance(deployer.address)));
 
-  const account = privateKeyToAccount(privateKey);
-  const client = createWalletClient({ account, chain: arcTestnet, transport: http() });
-  const publicClient = createPublicClient({ chain: arcTestnet, transport: http() });
+  // 1. TreasuryVault
+  console.log("\n[1/4] Deploying TreasuryVault...");
+  const TreasuryVault = await ethers.getContractFactory("TreasuryVault");
+  const treasury = await upgrades.deployProxy(
+    TreasuryVault,
+    [USDC, EURC, deployer.address],
+    { initializer: "initialize", kind: "uups" }
+  );
+  await treasury.waitForDeployment();
+  const treasuryAddr = await treasury.getAddress();
+  console.log("✓ TreasuryVault:", treasuryAddr);
 
-  console.log("Deploying Reapoor contracts to Arc Testnet...");
-  console.log("Deployer:", account.address);
+  // 2. RewardDistributor (temp addresses, wired after staking/liquidity deploy)
+  console.log("\n[2/4] Deploying RewardDistributor...");
+  const RewardDistributor = await ethers.getContractFactory("RewardDistributor");
+  const distributor = await upgrades.deployProxy(
+    RewardDistributor,
+    [USDC, EURC, deployer.address, ethers.ZeroAddress, ethers.ZeroAddress, treasuryAddr],
+    { initializer: "initialize", kind: "uups" }
+  );
+  await distributor.waitForDeployment();
+  const distributorAddr = await distributor.getAddress();
+  console.log("✓ RewardDistributor:", distributorAddr);
 
-  const balance = await publicClient.getBalance({ address: account.address });
-  console.log("Balance:", balance.toString());
+  // 3. ReapoorStakingManager
+  console.log("\n[3/4] Deploying ReapoorStakingManager...");
+  const StakingManager = await ethers.getContractFactory("ReapoorStakingManager");
+  const staking = await upgrades.deployProxy(
+    StakingManager,
+    [USDC, EURC, deployer.address, distributorAddr, USDC_STAKING_APY, EURC_STAKING_APY],
+    { initializer: "initialize", kind: "uups" }
+  );
+  await staking.waitForDeployment();
+  const stakingAddr = await staking.getAddress();
+  console.log("✓ ReapoorStakingManager:", stakingAddr);
 
-  // NOTE: Full deployment requires Hardhat or Foundry with OpenZeppelin upgrades plugin.
-  // This script outlines the deployment sequence:
-  //
-  // 1. Deploy TreasuryVault proxy
-  // 2. Deploy RewardDistributor proxy
-  // 3. Deploy ReapoorStakingManager proxy
-  // 4. Deploy ReapoorLiquidityManager proxy
-  // 5. Wire up roles: grant DISTRIBUTOR_ROLE to RewardDistributor on both managers
-  // 6. Fund TreasuryVault with initial reward reserves
+  // 4. ReapoorLiquidityManager
+  console.log("\n[4/4] Deploying ReapoorLiquidityManager...");
+  const LiquidityManager = await ethers.getContractFactory("ReapoorLiquidityManager");
+  const liquidity = await upgrades.deployProxy(
+    LiquidityManager,
+    [USDC, EURC, deployer.address, distributorAddr, USDC_LIQ_APY, EURC_LIQ_APY],
+    { initializer: "initialize", kind: "uups" }
+  );
+  await liquidity.waitForDeployment();
+  const liquidityAddr = await liquidity.getAddress();
+  console.log("✓ ReapoorLiquidityManager:", liquidityAddr);
 
-  console.log("\nDeployment sequence:");
-  console.log("1. TreasuryVault");
-  console.log("2. RewardDistributor");
-  console.log("3. ReapoorStakingManager");
-  console.log("4. ReapoorLiquidityManager");
-  console.log("\nUsing:");
-  console.log("  USDC:", USDC_ADDRESS);
-  console.log("  EURC:", EURC_ADDRESS);
-  console.log("\nRun with Hardhat for full proxy deployment:");
-  console.log("  npx hardhat run scripts/deploy.ts --network arcTestnet");
+  // 5. Wire distributor to staking + liquidity managers
+  console.log("\nWiring RewardDistributor to managers...");
+  const DISTRIBUTOR_ROLE = ethers.keccak256(ethers.toUtf8Bytes("DISTRIBUTOR_ROLE"));
+  await (await staking.grantRole(DISTRIBUTOR_ROLE, distributorAddr)).wait();
+  await (await liquidity.grantRole(DISTRIBUTOR_ROLE, distributorAddr)).wait();
+  console.log("✓ DISTRIBUTOR_ROLE granted");
+
+  console.log("\n============================================");
+  console.log("DEPLOYMENT COMPLETE — Update src/lib/contracts.ts:");
+  console.log("============================================");
+  console.log(`StakingManager:   "${stakingAddr}"`);
+  console.log(`LiquidityManager: "${liquidityAddr}"`);
+  console.log(`RewardDistributor:"${distributorAddr}"`);
+  console.log(`TreasuryVault:    "${treasuryAddr}"`);
+  console.log("============================================\n");
 }
 
-main().catch(console.error);
+main().catch((e) => { console.error(e); process.exit(1); });
