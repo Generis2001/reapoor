@@ -11,9 +11,12 @@ import { useLiquidityPosition, useLiquidityActions } from "@/hooks/useLiquidity"
 import { useToast } from "@/components/ui/Toast";
 import { formatToken } from "@/lib/utils";
 import { Gift, Wallet, TrendingUp, Clock } from "lucide-react";
+import { parseTxError } from "@/lib/txUtils";
+
+type ClaimOp = "stake" | "liq" | "all" | null;
 
 function RewardsPanel() {
-  const [loading, setLoading] = useState<string | null>(null);
+  const [claiming, setClaiming] = useState<ClaimOp>(null);
 
   const { pendingUsdc: stakePendingUsdc, pendingEurc: stakePendingEurc, lifetimeUsdc: stakeLifetimeUsdc, lifetimeEurc: stakeLifetimeEurc, refetch: refetchStake } = useStakingPosition();
   const { pendingUsdc: liqPendingUsdc, pendingEurc: liqPendingEurc, lifetimeUsdc: liqLifetimeUsdc, lifetimeEurc: liqLifetimeEurc, refetch: refetchLiq } = useLiquidityPosition();
@@ -25,74 +28,55 @@ function RewardsPanel() {
   const totalPendingEurc = stakePendingEurc + liqPendingEurc;
   const totalLifetimeUsdc = stakeLifetimeUsdc + liqLifetimeUsdc;
   const totalLifetimeEurc = stakeLifetimeEurc + liqLifetimeEurc;
-
-  const handleClaimUsdc = async () => {
-    setLoading("usdc");
-    try {
-      if (stakePendingUsdc > BigInt(0)) {
-        toast({ type: "pending", title: "Claiming USDC from staking..." });
-        const h = await claimStake();
-        toast({ type: "success", title: `Claimed ${formatToken(stakePendingUsdc)} USDC from staking!`, txHash: h });
-      }
-      if (liqPendingUsdc > BigInt(0)) {
-        toast({ type: "pending", title: "Claiming USDC from liquidity..." });
-        const h = await claimLiq();
-        toast({ type: "success", title: `Claimed ${formatToken(liqPendingUsdc)} USDC from liquidity!`, txHash: h });
-      }
-      refetchStake(); refetchLiq();
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Transaction failed";
-      toast({ type: "error", title: "Claim failed", description: msg.slice(0, 80) });
-    } finally {
-      setLoading(null);
-    }
-  };
-
-  const handleClaimEurc = async () => {
-    setLoading("eurc");
-    try {
-      if (stakePendingEurc > BigInt(0)) {
-        toast({ type: "pending", title: "Claiming EURC from staking..." });
-        const h = await claimStake();
-        toast({ type: "success", title: `Claimed ${formatToken(stakePendingEurc)} EURC from staking!`, txHash: h });
-      }
-      if (liqPendingEurc > BigInt(0)) {
-        toast({ type: "pending", title: "Claiming EURC from liquidity..." });
-        const h = await claimLiq();
-        toast({ type: "success", title: `Claimed ${formatToken(liqPendingEurc)} EURC from liquidity!`, txHash: h });
-      }
-      refetchStake(); refetchLiq();
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Transaction failed";
-      toast({ type: "error", title: "Claim failed", description: msg.slice(0, 80) });
-    } finally {
-      setLoading(null);
-    }
-  };
+  const hasRewards = totalPendingUsdc > BigInt(0) || totalPendingEurc > BigInt(0);
+  const isLoading = claiming !== null;
 
   const handleClaimAll = async () => {
-    setLoading("all");
+    setClaiming("all");
     try {
       if (stakePendingUsdc > BigInt(0) || stakePendingEurc > BigInt(0)) {
-        toast({ type: "pending", title: "Claiming staking rewards..." });
         const h = await claimStake();
         toast({ type: "success", title: "Staking rewards claimed!", txHash: h });
       }
       if (liqPendingUsdc > BigInt(0) || liqPendingEurc > BigInt(0)) {
-        toast({ type: "pending", title: "Claiming liquidity rewards..." });
         const h = await claimLiq();
         toast({ type: "success", title: "Liquidity rewards claimed!", txHash: h });
       }
       refetchStake(); refetchLiq();
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Transaction failed";
-      toast({ type: "error", title: "Claim all failed", description: msg.slice(0, 80) });
+    } catch (err) {
+      toast({ type: "error", title: "Claim failed", description: parseTxError(err) });
     } finally {
-      setLoading(null);
+      setClaiming(null);
     }
   };
 
-  const hasRewards = totalPendingUsdc > BigInt(0) || totalPendingEurc > BigInt(0);
+  const handleClaimStaking = async () => {
+    if (stakePendingUsdc === BigInt(0) && stakePendingEurc === BigInt(0)) return;
+    setClaiming("stake");
+    try {
+      const h = await claimStake();
+      toast({ type: "success", title: "Staking rewards claimed!", txHash: h });
+      refetchStake();
+    } catch (err) {
+      toast({ type: "error", title: "Claim failed", description: parseTxError(err) });
+    } finally {
+      setClaiming(null);
+    }
+  };
+
+  const handleClaimLiquidity = async () => {
+    if (liqPendingUsdc === BigInt(0) && liqPendingEurc === BigInt(0)) return;
+    setClaiming("liq");
+    try {
+      const h = await claimLiq();
+      toast({ type: "success", title: "Liquidity rewards claimed!", txHash: h });
+      refetchLiq();
+    } catch (err) {
+      toast({ type: "error", title: "Claim failed", description: parseTxError(err) });
+    } finally {
+      setClaiming(null);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -103,9 +87,7 @@ function RewardsPanel() {
           <div className="relative">
             <div className="flex items-center gap-2 mb-4">
               <USDCIcon size="md" />
-              <div>
-                <div className="text-xs text-blue-200 font-medium uppercase tracking-wider">Claimable USDC</div>
-              </div>
+              <div className="text-xs text-blue-200 font-medium uppercase tracking-wider">Claimable USDC</div>
             </div>
             <div className="text-4xl font-black mb-1">{formatToken(totalPendingUsdc)}</div>
             <div className="text-blue-200 text-sm mb-1">USDC</div>
@@ -120,9 +102,7 @@ function RewardsPanel() {
           <div className="relative">
             <div className="flex items-center gap-2 mb-4">
               <EURCIcon size="md" />
-              <div>
-                <div className="text-xs text-sky-200 font-medium uppercase tracking-wider">Claimable EURC</div>
-              </div>
+              <div className="text-xs text-sky-200 font-medium uppercase tracking-wider">Claimable EURC</div>
             </div>
             <div className="text-4xl font-black mb-1">{formatToken(totalPendingEurc)}</div>
             <div className="text-sky-200 text-sm mb-1">EURC</div>
@@ -139,29 +119,26 @@ function RewardsPanel() {
         <div className="flex flex-wrap gap-3">
           <Button
             variant="secondary"
-            onClick={handleClaimUsdc}
-            loading={loading === "usdc"}
-            disabled={totalPendingUsdc === BigInt(0)}
-            className="flex items-center gap-2"
+            onClick={handleClaimStaking}
+            loading={claiming === "stake"}
+            disabled={isLoading || (stakePendingUsdc === BigInt(0) && stakePendingEurc === BigInt(0))}
           >
-            <USDCIcon size="sm" /> Claim USDC
+            From Staking
           </Button>
           <Button
             variant="secondary"
-            onClick={handleClaimEurc}
-            loading={loading === "eurc"}
-            disabled={totalPendingEurc === BigInt(0)}
-            className="flex items-center gap-2"
+            onClick={handleClaimLiquidity}
+            loading={claiming === "liq"}
+            disabled={isLoading || (liqPendingUsdc === BigInt(0) && liqPendingEurc === BigInt(0))}
           >
-            <EURCIcon size="sm" /> Claim EURC
+            From Liquidity
           </Button>
           <Button
             onClick={handleClaimAll}
-            loading={loading === "all"}
-            disabled={!hasRewards}
-            className="flex items-center gap-2"
+            loading={claiming === "all"}
+            disabled={isLoading || !hasRewards}
           >
-            <Gift className="w-4 h-4" /> Claim All Rewards
+            <Gift className="w-4 h-4" /> Claim All
           </Button>
         </div>
         {!hasRewards && (

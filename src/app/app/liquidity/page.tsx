@@ -11,8 +11,8 @@ import { useLiquidityPosition, useLiquidityActions } from "@/hooks/useLiquidity"
 import { useWalletBalances } from "@/hooks/useWalletBalances";
 import { useToast } from "@/components/ui/Toast";
 import { formatToken, formatApy } from "@/lib/utils";
-import { parseUnits } from "viem";
 import { Wallet, Droplets } from "lucide-react";
+import { parseTxError, txButtonLabel } from "@/lib/txUtils";
 
 type LiqMode = "usdc" | "eurc" | "both";
 type Tab = "add" | "remove";
@@ -22,70 +22,48 @@ function LiquidityPanel() {
   const [tab, setTab] = useState<Tab>("add");
   const [usdcInput, setUsdcInput] = useState("");
   const [eurcInput, setEurcInput] = useState("");
-  const [loading, setLoading] = useState(false);
 
   const { usdcShares, eurcShares, usdcDeposit, eurcDeposit, pendingUsdc, pendingEurc, totalUsdcDeposited, totalEurcDeposited, usdcApy, eurcApy, lifetimeUsdc, lifetimeEurc, refetch } = useLiquidityPosition();
   const { usdcBalance, eurcBalance, refetch: refetchBalances } = useWalletBalances();
-  const { approveUsdc, approveEurc, addLiquidity, removeLiquidity, claimRewards } = useLiquidityActions();
+  const { addLiquidity, removeLiquidity, claimRewards, txState, isLoading, resetTxState } = useLiquidityActions();
   const { toast } = useToast();
 
   const handleAdd = async () => {
-    setLoading(true);
+    const u = mode === "eurc" ? "0" : (usdcInput || "0");
+    const e = mode === "usdc" ? "0" : (eurcInput || "0");
+    if (u === "0" && e === "0") return;
     try {
-      if (usdcInput && (mode === "usdc" || mode === "both")) {
-        toast({ type: "pending", title: "Approving USDC..." });
-        const h = await approveUsdc(parseUnits(usdcInput, 6));
-        toast({ type: "success", title: "USDC Approved", txHash: h });
-      }
-      if (eurcInput && (mode === "eurc" || mode === "both")) {
-        toast({ type: "pending", title: "Approving EURC..." });
-        const h = await approveEurc(parseUnits(eurcInput, 6));
-        toast({ type: "success", title: "EURC Approved", txHash: h });
-      }
-      toast({ type: "pending", title: "Adding liquidity..." });
-      const u = mode === "eurc" ? "0" : (usdcInput || "0");
-      const e = mode === "usdc" ? "0" : (eurcInput || "0");
       const hash = await addLiquidity(u, e);
       toast({ type: "success", title: "Liquidity added!", txHash: hash });
       setUsdcInput(""); setEurcInput("");
       refetch(); refetchBalances();
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Transaction failed";
-      toast({ type: "error", title: "Add liquidity failed", description: msg.slice(0, 80) });
-    } finally {
-      setLoading(false);
+      resetTxState();
+    } catch (err) {
+      toast({ type: "error", title: "Add liquidity failed", description: parseTxError(err) });
     }
   };
 
   const handleRemove = async () => {
-    setLoading(true);
+    const uShares = mode === "eurc" ? BigInt(0) : usdcShares;
+    const eShares = mode === "usdc" ? BigInt(0) : eurcShares;
     try {
-      toast({ type: "pending", title: "Removing liquidity..." });
-      const uShares = mode === "eurc" ? BigInt(0) : usdcShares;
-      const eShares = mode === "usdc" ? BigInt(0) : eurcShares;
       const hash = await removeLiquidity(uShares, eShares);
       toast({ type: "success", title: "Liquidity removed!", txHash: hash });
       refetch(); refetchBalances();
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Transaction failed";
-      toast({ type: "error", title: "Remove failed", description: msg.slice(0, 80) });
-    } finally {
-      setLoading(false);
+      resetTxState();
+    } catch (err) {
+      toast({ type: "error", title: "Remove failed", description: parseTxError(err) });
     }
   };
 
   const handleClaim = async () => {
-    setLoading(true);
     try {
-      toast({ type: "pending", title: "Claiming rewards..." });
       const hash = await claimRewards();
       toast({ type: "success", title: "Rewards claimed!", txHash: hash });
       refetch(); refetchBalances();
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Transaction failed";
-      toast({ type: "error", title: "Claim failed", description: msg.slice(0, 80) });
-    } finally {
-      setLoading(false);
+      resetTxState();
+    } catch (err) {
+      toast({ type: "error", title: "Claim failed", description: parseTxError(err) });
     }
   };
 
@@ -110,7 +88,8 @@ function LiquidityPanel() {
               <button
                 key={m}
                 onClick={() => setMode(m)}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium transition-all ${
+                disabled={isLoading}
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium transition-all disabled:opacity-50 ${
                   mode === m ? "bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-500/25" : "bg-white text-slate-600 border-slate-200 hover:border-blue-200"
                 }`}
               >
@@ -125,7 +104,7 @@ function LiquidityPanel() {
         <Card className="p-5">
           <div className="flex gap-1 bg-slate-100 rounded-xl p-1 mb-5 w-fit">
             {(["add", "remove"] as Tab[]).map((t) => (
-              <button key={t} onClick={() => setTab(t)}
+              <button key={t} onClick={() => { if (!isLoading) setTab(t); }}
                 className={`px-5 py-2 rounded-lg text-sm font-semibold capitalize transition-all ${tab === t ? "bg-white text-blue-700 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
                 {t === "add" ? "Add Liquidity" : "Remove Liquidity"}
               </button>
@@ -142,9 +121,10 @@ function LiquidityPanel() {
                     placeholder="0.00"
                     value={usdcInput}
                     onChange={(e) => setUsdcInput(e.target.value)}
+                    disabled={isLoading}
                     prefix={<USDCIcon size="sm" />}
                     suffix={
-                      <button onClick={() => setUsdcInput(formatToken(usdcBalance, 6, 6))} className="text-xs text-blue-600 font-semibold">MAX</button>
+                      <button onClick={() => setUsdcInput(formatToken(usdcBalance, 6, 6))} disabled={isLoading} className="text-xs text-blue-600 font-semibold disabled:opacity-50">MAX</button>
                     }
                   />
                 )}
@@ -155,14 +135,15 @@ function LiquidityPanel() {
                     placeholder="0.00"
                     value={eurcInput}
                     onChange={(e) => setEurcInput(e.target.value)}
+                    disabled={isLoading}
                     prefix={<EURCIcon size="sm" />}
                     suffix={
-                      <button onClick={() => setEurcInput(formatToken(eurcBalance, 6, 6))} className="text-xs text-blue-600 font-semibold">MAX</button>
+                      <button onClick={() => setEurcInput(formatToken(eurcBalance, 6, 6))} disabled={isLoading} className="text-xs text-blue-600 font-semibold disabled:opacity-50">MAX</button>
                     }
                   />
                 )}
-                <Button className="w-full" size="lg" onClick={handleAdd} loading={loading}>
-                  Add Liquidity
+                <Button className="w-full" size="lg" onClick={handleAdd} loading={isLoading} disabled={isLoading}>
+                  {txButtonLabel(txState.status, "Add Liquidity")}
                 </Button>
               </>
             ) : (
@@ -170,9 +151,15 @@ function LiquidityPanel() {
                 <div className="p-4 rounded-xl bg-amber-50 border border-amber-100 text-sm text-amber-800">
                   This will remove all your {mode === "both" ? "USDC and EURC" : mode.toUpperCase()} liquidity. Pending rewards will be claimed automatically.
                 </div>
-                <Button className="w-full" size="lg" variant="danger" onClick={handleRemove} loading={loading}
-                  disabled={(mode !== "eurc" && usdcShares === BigInt(0)) && (mode !== "usdc" && eurcShares === BigInt(0))}>
-                  Remove Liquidity
+                <Button
+                  className="w-full"
+                  size="lg"
+                  variant="danger"
+                  onClick={handleRemove}
+                  loading={isLoading}
+                  disabled={isLoading || ((mode !== "eurc" && usdcShares === BigInt(0)) && (mode !== "usdc" && eurcShares === BigInt(0)))}
+                >
+                  {txButtonLabel(txState.status, "Remove Liquidity")}
                 </Button>
               </>
             )}
@@ -239,10 +226,10 @@ function LiquidityPanel() {
             variant="secondary"
             size="sm"
             onClick={handleClaim}
-            loading={loading}
-            disabled={pendingUsdc === BigInt(0) && pendingEurc === BigInt(0)}
+            loading={isLoading}
+            disabled={isLoading || (pendingUsdc === BigInt(0) && pendingEurc === BigInt(0))}
           >
-            Claim Rewards
+            {txButtonLabel(txState.status, "Claim Rewards")}
           </Button>
         </Card>
 

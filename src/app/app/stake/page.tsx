@@ -12,8 +12,8 @@ import { useWalletBalances } from "@/hooks/useWalletBalances";
 import { useToast } from "@/components/ui/Toast";
 import { formatToken, formatApy } from "@/lib/utils";
 import { parseUnits } from "viem";
-import { Wallet, TrendingUp } from "lucide-react";
-import { ARCSCAN_TX } from "@/lib/config";
+import { Wallet } from "lucide-react";
+import { parseTxError, txButtonLabel } from "@/lib/txUtils";
 
 type StakeMode = "usdc" | "eurc" | "both";
 type Tab = "stake" | "unstake";
@@ -23,71 +23,50 @@ function StakePanel() {
   const [tab, setTab] = useState<Tab>("stake");
   const [usdcInput, setUsdcInput] = useState("");
   const [eurcInput, setEurcInput] = useState("");
-  const [loading, setLoading] = useState(false);
 
   const { usdcStaked, eurcStaked, pendingUsdc, pendingEurc, usdcApy, eurcApy, lifetimeUsdc, lifetimeEurc, refetch } = useStakingPosition();
   const { usdcBalance, eurcBalance, refetch: refetchBalances } = useWalletBalances();
-  const { approveUsdc, approveEurc, stake, unstake, claimRewards } = useStakeActions();
+  const { stake, unstake, claimRewards, txState, isLoading, resetTxState } = useStakeActions();
   const { toast } = useToast();
 
   const handleStake = async () => {
-    setLoading(true);
+    const u = mode === "eurc" ? "0" : (usdcInput || "0");
+    const e = mode === "usdc" ? "0" : (eurcInput || "0");
+    if (u === "0" && e === "0") return;
     try {
-      if (usdcInput && (mode === "usdc" || mode === "both")) {
-        toast({ type: "pending", title: "Approving USDC..." });
-        const approveTx = await approveUsdc(parseUnits(usdcInput, 6));
-        toast({ type: "success", title: "USDC Approved", txHash: approveTx });
-      }
-      if (eurcInput && (mode === "eurc" || mode === "both")) {
-        toast({ type: "pending", title: "Approving EURC..." });
-        const approveTx = await approveEurc(parseUnits(eurcInput, 6));
-        toast({ type: "success", title: "EURC Approved", txHash: approveTx });
-      }
-      toast({ type: "pending", title: "Staking..." });
-      const u = mode === "eurc" ? "0" : (usdcInput || "0");
-      const e = mode === "usdc" ? "0" : (eurcInput || "0");
       const hash = await stake(u, e);
       toast({ type: "success", title: "Staked successfully!", txHash: hash });
       setUsdcInput(""); setEurcInput("");
       refetch(); refetchBalances();
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Transaction failed";
-      toast({ type: "error", title: "Stake failed", description: msg.slice(0, 80) });
-    } finally {
-      setLoading(false);
+      resetTxState();
+    } catch (err) {
+      toast({ type: "error", title: "Stake failed", description: parseTxError(err) });
     }
   };
 
   const handleUnstake = async () => {
-    setLoading(true);
+    const u = mode === "eurc" ? "0" : (usdcInput || "0");
+    const e = mode === "usdc" ? "0" : (eurcInput || "0");
+    if (u === "0" && e === "0") return;
     try {
-      toast({ type: "pending", title: "Unstaking..." });
-      const u = mode === "eurc" ? "0" : (usdcInput || "0");
-      const e = mode === "usdc" ? "0" : (eurcInput || "0");
       const hash = await unstake(u, e);
       toast({ type: "success", title: "Unstaked successfully!", txHash: hash });
       setUsdcInput(""); setEurcInput("");
       refetch(); refetchBalances();
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Transaction failed";
-      toast({ type: "error", title: "Unstake failed", description: msg.slice(0, 80) });
-    } finally {
-      setLoading(false);
+      resetTxState();
+    } catch (err) {
+      toast({ type: "error", title: "Unstake failed", description: parseTxError(err) });
     }
   };
 
   const handleClaim = async () => {
-    setLoading(true);
     try {
-      toast({ type: "pending", title: "Claiming rewards..." });
       const hash = await claimRewards();
       toast({ type: "success", title: "Rewards claimed!", description: `${formatToken(pendingUsdc)} USDC + ${formatToken(pendingEurc)} EURC`, txHash: hash });
       refetch(); refetchBalances();
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Transaction failed";
-      toast({ type: "error", title: "Claim failed", description: msg.slice(0, 80) });
-    } finally {
-      setLoading(false);
+      resetTxState();
+    } catch (err) {
+      toast({ type: "error", title: "Claim failed", description: parseTxError(err) });
     }
   };
 
@@ -106,7 +85,8 @@ function StakePanel() {
               <button
                 key={m}
                 onClick={() => setMode(m)}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium transition-all ${
+                disabled={isLoading}
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium transition-all disabled:opacity-50 ${
                   mode === m ? "bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-500/25" : "bg-white text-slate-600 border-slate-200 hover:border-blue-200"
                 }`}
               >
@@ -122,7 +102,7 @@ function StakePanel() {
         <Card className="p-5">
           <div className="flex gap-1 bg-slate-100 rounded-xl p-1 mb-5 w-fit">
             {(["stake", "unstake"] as Tab[]).map((t) => (
-              <button key={t} onClick={() => setTab(t)}
+              <button key={t} onClick={() => { if (!isLoading) setTab(t); }}
                 className={`px-5 py-2 rounded-lg text-sm font-semibold capitalize transition-all ${tab === t ? "bg-white text-blue-700 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
                 {t}
               </button>
@@ -137,11 +117,13 @@ function StakePanel() {
                 placeholder="0.00"
                 value={usdcInput}
                 onChange={(e) => setUsdcInput(e.target.value)}
+                disabled={isLoading}
                 prefix={<USDCIcon size="sm" />}
                 suffix={
                   <button
                     onClick={() => setUsdcInput(tab === "stake" ? formatToken(usdcBalance, 6, 6) : formatToken(usdcStaked, 6, 6))}
-                    className="text-xs text-blue-600 font-semibold hover:text-blue-700"
+                    disabled={isLoading}
+                    className="text-xs text-blue-600 font-semibold hover:text-blue-700 disabled:opacity-50"
                   >MAX</button>
                 }
               />
@@ -153,11 +135,13 @@ function StakePanel() {
                 placeholder="0.00"
                 value={eurcInput}
                 onChange={(e) => setEurcInput(e.target.value)}
+                disabled={isLoading}
                 prefix={<EURCIcon size="sm" />}
                 suffix={
                   <button
                     onClick={() => setEurcInput(tab === "stake" ? formatToken(eurcBalance, 6, 6) : formatToken(eurcStaked, 6, 6))}
-                    className="text-xs text-blue-600 font-semibold hover:text-blue-700"
+                    disabled={isLoading}
+                    className="text-xs text-blue-600 font-semibold hover:text-blue-700 disabled:opacity-50"
                   >MAX</button>
                 }
               />
@@ -167,9 +151,10 @@ function StakePanel() {
               className="w-full mt-2"
               size="lg"
               onClick={tab === "stake" ? handleStake : handleUnstake}
-              loading={loading}
+              loading={isLoading}
+              disabled={isLoading}
             >
-              {tab === "stake" ? "Stake" : "Unstake"}
+              {txButtonLabel(txState.status, tab === "stake" ? "Stake" : "Unstake")}
             </Button>
           </div>
         </Card>
@@ -223,10 +208,10 @@ function StakePanel() {
             variant="secondary"
             size="sm"
             onClick={handleClaim}
-            loading={loading}
-            disabled={pendingUsdc === BigInt(0) && pendingEurc === BigInt(0)}
+            loading={isLoading}
+            disabled={isLoading || (pendingUsdc === BigInt(0) && pendingEurc === BigInt(0))}
           >
-            Claim Rewards
+            {txButtonLabel(txState.status, "Claim Rewards")}
           </Button>
         </Card>
 
