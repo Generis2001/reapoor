@@ -3,10 +3,10 @@
 export const CONTRACT_ADDRESSES = {
   USDC: "0x3600000000000000000000000000000000000000" as `0x${string}`,
   EURC: "0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a" as `0x${string}`,
-  StakingManager: "0x58B7f1b22902A7c84d290842e1ee1799714F7AC0" as `0x${string}`,
-  LiquidityManager: "0x8E3c8e5717040c5Ca3c1656B88ab0b261F7AbC24" as `0x${string}`,
-  RewardDistributor: "0x54aC31997d5b193A9e2e83D7211B752E63777d21" as `0x${string}`,
-  TreasuryVault: "0x8BE9CA2B9e52f43a1a8754491AA281B2b20924B5" as `0x${string}`,
+  StakingManager: "0xfFf31a3c3A27e6A0C8AeA62aE5EB4dDeB7e37909" as `0x${string}`,
+  LiquidityManager: "0xeA846188162E2Df3bB18c474CBB0C90aad443E3f" as `0x${string}`,
+  RewardDistributor: "0xf0c4fbd10b53a607D8A5EeF15696c3fD4b850a3c" as `0x${string}`,
+  TreasuryVault: "0x1d28471bbDf6e33618b04D99041a9a27C4568141" as `0x${string}`,
 } as const;
 
 export const ERC20_ABI = [
