@@ -9,7 +9,7 @@ export function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-12">
           <div className="col-span-1">
             <div className="mb-4">
-              <Image src="/reapoor-logo.jpeg" alt="Reapoor" width={140} height={40} className="h-10 w-auto object-contain" />
+              <Image src="/reapoor-logo.jpeg" alt="Reapoor" width={1080} height={852} className="h-10 w-auto" />
             </div>
             <p className="text-sm leading-relaxed mb-6">
               Institutional-grade stablecoin yield protocol built natively for Arc Testnet.
