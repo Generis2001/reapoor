@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useAccount } from "wagmi";
 import { usePrivy } from "@privy-io/react-auth";
 import { Button } from "@/components/ui/Button";
@@ -42,11 +43,8 @@ export function Header() {
       scrolled ? "bg-white/90 backdrop-blur-md border-b border-slate-100 shadow-sm" : "bg-transparent"
     )}>
       <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-blue-400 rounded-lg flex items-center justify-center">
-            <span className="text-white font-bold text-sm">R</span>
-          </div>
-          <span className="font-bold text-xl text-slate-900 tracking-tight">Reapoor</span>
+        <Link href="/" className="flex items-center">
+          <Image src="/reapoor-logo.jpeg" alt="Reapoor" width={140} height={40} className="h-10 w-auto object-contain" priority />
         </Link>
 
         <nav className="hidden md:flex items-center gap-8">

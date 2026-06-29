@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { USDCIcon, EURCIcon } from "@/components/ui/TokenIcon";
 
 export function Footer() {
@@ -7,11 +8,8 @@ export function Footer() {
       <div className="max-w-7xl mx-auto px-6 py-16">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-12">
           <div className="col-span-1">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-400 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-sm">R</span>
-              </div>
-              <span className="font-bold text-xl text-white tracking-tight">Reapoor</span>
+            <div className="mb-4">
+              <Image src="/reapoor-logo.jpeg" alt="Reapoor" width={140} height={40} className="h-10 w-auto object-contain" />
             </div>
             <p className="text-sm leading-relaxed mb-6">
               Institutional-grade stablecoin yield protocol built natively for Arc Testnet.

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useAccount } from "wagmi";
 import { usePrivy } from "@privy-io/react-auth";
@@ -34,11 +35,8 @@ export function AppNav() {
       {/* Sidebar — desktop */}
       <aside className="hidden lg:flex flex-col w-60 shrink-0 bg-white border-r border-slate-100 min-h-screen sticky top-0">
         <div className="p-6 border-b border-slate-100">
-          <Link href="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-blue-400 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">R</span>
-            </div>
-            <span className="font-bold text-xl text-slate-900 tracking-tight">Reapoor</span>
+          <Link href="/" className="flex items-center">
+            <Image src="/reapoor-logo.jpeg" alt="Reapoor" width={140} height={40} className="h-9 w-auto object-contain" priority />
           </Link>
         </div>
 
@@ -102,11 +100,8 @@ export function AppNav() {
 
       {/* Mobile top bar */}
       <div className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-white border-b border-slate-100 h-14 flex items-center px-4 justify-between">
-        <Link href="/" className="flex items-center gap-2">
-          <div className="w-7 h-7 bg-gradient-to-br from-blue-600 to-blue-400 rounded-lg flex items-center justify-center">
-            <span className="text-white font-bold text-xs">R</span>
-          </div>
-          <span className="font-bold text-lg text-slate-900">Reapoor</span>
+        <Link href="/" className="flex items-center">
+          <Image src="/reapoor-logo.jpeg" alt="Reapoor" width={120} height={36} className="h-8 w-auto object-contain" priority />
         </Link>
         <button onClick={() => setMobileOpen(!mobileOpen)} className="p-2 text-slate-600">
           {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
