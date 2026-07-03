@@ -33,11 +33,13 @@ function ConnectPrompt() {
 export default function DashboardPage() {
   const { isConnected } = useAccount();
   const { usdcStaked, eurcStaked, pendingUsdc: stakePendingUsdc, pendingEurc: stakePendingEurc, totalUsdcStaked, totalEurcStaked, usdcApy, eurcApy, lifetimeUsdc: stakeLifetimeUsdc, lifetimeEurc: stakeLifetimeEurc } = useStakingPosition();
-  const { usdcDeposit, eurcDeposit, pendingUsdc: liqPendingUsdc, pendingEurc: liqPendingEurc, totalUsdcDeposited, totalEurcDeposited } = useLiquidityPosition();
+  const { usdcDeposit, eurcDeposit, pendingUsdc: liqPendingUsdc, pendingEurc: liqPendingEurc, totalUsdcDeposited, totalEurcDeposited, lifetimeUsdc: liqLifetimeUsdc, lifetimeEurc: liqLifetimeEurc } = useLiquidityPosition();
   const { usdcBalance, eurcBalance } = useWalletBalances();
 
   const totalPendingUsdc = stakePendingUsdc + liqPendingUsdc;
   const totalPendingEurc = stakePendingEurc + liqPendingEurc;
+  const totalLifetimeUsdc = stakeLifetimeUsdc + liqLifetimeUsdc;
+  const totalLifetimeEurc = stakeLifetimeEurc + liqLifetimeEurc;
   const tvl = totalUsdcStaked + totalEurcStaked + totalUsdcDeposited + totalEurcDeposited;
 
   if (!isConnected) return <ConnectPrompt />;
@@ -191,15 +193,15 @@ export default function DashboardPage() {
           <div className="flex items-center gap-3">
             <USDCIcon size="lg" />
             <div>
-              <div className="text-2xl font-bold">{formatToken(stakeLifetimeUsdc)} USDC</div>
-              <div className="text-blue-200 text-xs mt-0.5">Total USDC earned</div>
+              <div className="text-2xl font-bold">{formatToken(totalLifetimeUsdc)} USDC</div>
+              <div className="text-blue-200 text-xs mt-0.5">Staking + liquidity claimed</div>
             </div>
           </div>
           <div className="flex items-center gap-3">
             <EURCIcon size="lg" />
             <div>
-              <div className="text-2xl font-bold">{formatToken(stakeLifetimeEurc)} EURC</div>
-              <div className="text-blue-200 text-xs mt-0.5">Total EURC earned</div>
+              <div className="text-2xl font-bold">{formatToken(totalLifetimeEurc)} EURC</div>
+              <div className="text-blue-200 text-xs mt-0.5">Staking + liquidity claimed</div>
             </div>
           </div>
         </div>
