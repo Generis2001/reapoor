@@ -20,6 +20,8 @@ contract ReapoorStakingManager is
 {
     using SafeERC20 for IERC20;
 
+    uint256 private constant SECONDS_PER_YEAR = 365 days;
+
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
     bytes32 public constant DISTRIBUTOR_ROLE = keccak256("DISTRIBUTOR_ROLE");
     bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
@@ -55,10 +57,12 @@ contract ReapoorStakingManager is
     mapping(address => uint256) public lifetimeEurcEarned;
 
     address public rewardDistributor;
-
     uint256 public totalUniqueStakers;
     uint256 public totalUsdcDistributed;
     uint256 public totalEurcDistributed;
+    uint256 public lastRewardTimestamp;
+    uint256 public rewardUsdcReserve;
+    uint256 public rewardEurcReserve;
 
     event Staked(address indexed user, uint256 usdcAmount, uint256 eurcAmount);
     event Unstaked(address indexed user, uint256 usdcAmount, uint256 eurcAmount);
@@ -92,6 +96,7 @@ contract ReapoorStakingManager is
         pool.usdcApy = _usdcApy;
         pool.eurcApy = _eurcApy;
         pool.lastRewardBlock = block.number;
+        lastRewardTimestamp = block.timestamp;
 
         _grantRole(DEFAULT_ADMIN_ROLE, _admin);
         _grantRole(ADMIN_ROLE, _admin);
@@ -183,24 +188,36 @@ contract ReapoorStakingManager is
     {
         _updatePool();
 
-        if (usdcAmount > 0 && pool.totalUsdcStaked > 0) {
+        if (usdcAmount > 0) {
             usdc.safeTransferFrom(msg.sender, address(this), usdcAmount);
-            pool.accUsdcRewardPerShare += (usdcAmount * 1e18) / pool.totalUsdcStaked;
-            totalUsdcDistributed += usdcAmount;
+            rewardUsdcReserve += usdcAmount;
         }
-        if (eurcAmount > 0 && pool.totalEurcStaked > 0) {
+        if (eurcAmount > 0) {
             eurc.safeTransferFrom(msg.sender, address(this), eurcAmount);
-            pool.accEurcRewardPerShare += (eurcAmount * 1e18) / pool.totalEurcStaked;
-            totalEurcDistributed += eurcAmount;
+            rewardEurcReserve += eurcAmount;
         }
 
         emit RewardsAdded(usdcAmount, eurcAmount);
     }
 
     function emergencyWithdraw() external nonReentrant {
+        _updatePool();
+        _settlePending(msg.sender);
+
         StakePosition storage pos = positions[msg.sender];
         uint256 uAmt = pos.usdcAmount;
         uint256 eAmt = pos.eurcAmount;
+        uint256 forfeitedUsdc = pendingUsdcRewards[msg.sender];
+        uint256 forfeitedEurc = pendingEurcRewards[msg.sender];
+
+        if (forfeitedUsdc > 0) {
+            rewardUsdcReserve += forfeitedUsdc;
+            totalUsdcDistributed -= forfeitedUsdc;
+        }
+        if (forfeitedEurc > 0) {
+            rewardEurcReserve += forfeitedEurc;
+            totalEurcDistributed -= forfeitedEurc;
+        }
 
         pos.usdcAmount = 0;
         pos.eurcAmount = 0;
@@ -230,6 +247,7 @@ contract ReapoorStakingManager is
         onlyRole(ADMIN_ROLE)
     {
         require(_usdcApy <= 10000 && _eurcApy <= 10000, "APY too high");
+        _updatePool();
         pool.usdcApy = _usdcApy;
         pool.eurcApy = _eurcApy;
         emit ApyUpdated(_usdcApy, _eurcApy);
@@ -244,14 +262,25 @@ contract ReapoorStakingManager is
         returns (uint256 pendingUsdc, uint256 pendingEurc)
     {
         StakePosition memory pos = positions[user];
-        uint256 accUsdc = pool.accUsdcRewardPerShare;
-        uint256 accEurc = pool.accEurcRewardPerShare;
+        (uint256 accUsdc, uint256 accEurc) = _previewAccRewardPerShare();
 
         pendingUsdc = pendingUsdcRewards[user] + (pos.usdcAmount * accUsdc / 1e18) - pos.usdcRewardDebt;
         pendingEurc = pendingEurcRewards[user] + (pos.eurcAmount * accEurc / 1e18) - pos.eurcRewardDebt;
     }
 
     function _updatePool() internal {
+        (uint256 accUsdc, uint256 accEurc, uint256 usdcReward, uint256 eurcReward) = _previewPoolUpdate();
+        pool.accUsdcRewardPerShare = accUsdc;
+        pool.accEurcRewardPerShare = accEurc;
+        if (usdcReward > 0) {
+            rewardUsdcReserve -= usdcReward;
+            totalUsdcDistributed += usdcReward;
+        }
+        if (eurcReward > 0) {
+            rewardEurcReserve -= eurcReward;
+            totalEurcDistributed += eurcReward;
+        }
+        lastRewardTimestamp = block.timestamp;
         pool.lastRewardBlock = block.number;
     }
 
@@ -284,6 +313,66 @@ contract ReapoorStakingManager is
 
         if (uReward > 0 || eReward > 0) {
             emit RewardsClaimed(user, uReward, eReward);
+        }
+    }
+
+    function _previewAccRewardPerShare() internal view returns (uint256 accUsdc, uint256 accEurc) {
+        (accUsdc, accEurc,,) = _previewPoolUpdate();
+    }
+
+    function _previewPoolUpdate()
+        internal
+        view
+        returns (uint256 accUsdc, uint256 accEurc, uint256 usdcReward, uint256 eurcReward)
+    {
+        accUsdc = pool.accUsdcRewardPerShare;
+        accEurc = pool.accEurcRewardPerShare;
+
+        uint256 lastUpdated = lastRewardTimestamp == 0 ? block.timestamp : lastRewardTimestamp;
+        if (block.timestamp <= lastUpdated) {
+            return (accUsdc, accEurc, 0, 0);
+        }
+
+        uint256 elapsed = block.timestamp - lastUpdated;
+
+        if (pool.totalUsdcStaked > 0 && pool.usdcApy > 0 && rewardUsdcReserve > 0) {
+            usdcReward = _computeAccruedReward(
+                pool.totalUsdcStaked,
+                pool.usdcApy,
+                elapsed,
+                rewardUsdcReserve
+            );
+            if (usdcReward > 0) {
+                accUsdc += (usdcReward * 1e18) / pool.totalUsdcStaked;
+            }
+        }
+
+        if (pool.totalEurcStaked > 0 && pool.eurcApy > 0 && rewardEurcReserve > 0) {
+            eurcReward = _computeAccruedReward(
+                pool.totalEurcStaked,
+                pool.eurcApy,
+                elapsed,
+                rewardEurcReserve
+            );
+            if (eurcReward > 0) {
+                accEurc += (eurcReward * 1e18) / pool.totalEurcStaked;
+            }
+        }
+    }
+
+    function _computeAccruedReward(
+        uint256 principal,
+        uint256 apyBps,
+        uint256 elapsed,
+        uint256 reserve
+    ) internal pure returns (uint256 reward) {
+        if (principal == 0 || apyBps == 0 || elapsed == 0 || reserve == 0) {
+            return 0;
+        }
+
+        reward = (principal * apyBps * elapsed) / 10000 / SECONDS_PER_YEAR;
+        if (reward > reserve) {
+            reward = reserve;
         }
     }
 

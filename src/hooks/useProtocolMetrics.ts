@@ -25,8 +25,10 @@ export function useProtocolMetrics() {
   }, []);
 
   useEffect(() => {
-    fetchMetrics();
-    const id = setInterval(fetchMetrics, POLL_INTERVAL);
+    void Promise.resolve().then(fetchMetrics);
+    const id = setInterval(() => {
+      void fetchMetrics();
+    }, POLL_INTERVAL);
     return () => clearInterval(id);
   }, [fetchMetrics]);
 

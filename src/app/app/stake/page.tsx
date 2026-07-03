@@ -11,7 +11,6 @@ import { useStakingPosition, useStakeActions } from "@/hooks/useStaking";
 import { useWalletBalances } from "@/hooks/useWalletBalances";
 import { useToast } from "@/components/ui/Toast";
 import { formatToken, formatApy } from "@/lib/utils";
-import { parseUnits } from "viem";
 import { Wallet } from "lucide-react";
 import { parseTxError, txButtonLabel } from "@/lib/txUtils";
 

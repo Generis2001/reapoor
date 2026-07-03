@@ -12,6 +12,10 @@ interface IReapoorManager {
     function addRewards(uint256 usdcAmount, uint256 eurcAmount) external;
 }
 
+interface ITreasuryVault {
+    function fundDistributor(address distributor, uint256 usdcAmount, uint256 eurcAmount) external;
+}
+
 /// @title RewardDistributor
 /// @notice Orchestrates reward distribution to staking and liquidity managers
 contract RewardDistributor is
@@ -58,6 +62,7 @@ contract RewardDistributor is
         uint256 liqUsdc,
         uint256 liqEurc
     );
+    event ManagersUpdated(address stakingManager, address liquidityManager);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() { _disableInitializers(); }
@@ -98,6 +103,8 @@ contract RewardDistributor is
         onlyRole(OPERATOR_ROLE)
         whenNotPaused
     {
+        require(stakingManager != address(0) && liquidityManager != address(0), "Managers not set");
+        require(totalUsdc > 0 || totalEurc > 0, "Zero distribution");
         require(
             block.timestamp >= lastDistributionTimestamp + minDistributionInterval,
             "Too soon"
@@ -108,8 +115,7 @@ contract RewardDistributor is
         uint256 stakingEurc = (totalEurc * stakingEurcAllocation) / 10000;
         uint256 liqEurc = totalEurc - stakingEurc;
 
-        if (totalUsdc > 0) usdc.safeTransferFrom(msg.sender, address(this), totalUsdc);
-        if (totalEurc > 0) eurc.safeTransferFrom(msg.sender, address(this), totalEurc);
+        _fundFromTreasury(totalUsdc, totalEurc);
 
         if (stakingUsdc > 0) usdc.approve(stakingManager, stakingUsdc);
         if (stakingEurc > 0) eurc.approve(stakingManager, stakingEurc);
@@ -129,6 +135,16 @@ contract RewardDistributor is
         distributionEpoch++;
 
         emit RewardsDistributed(distributionEpoch, stakingUsdc, stakingEurc, liqUsdc, liqEurc);
+    }
+
+    function setManagers(address _stakingManager, address _liquidityManager)
+        external
+        onlyRole(ADMIN_ROLE)
+    {
+        require(_stakingManager != address(0) && _liquidityManager != address(0), "Zero address");
+        stakingManager = _stakingManager;
+        liquidityManager = _liquidityManager;
+        emit ManagersUpdated(_stakingManager, _liquidityManager);
     }
 
     function updateAllocations(
@@ -152,6 +168,21 @@ contract RewardDistributor is
 
     function pause() external onlyRole(ADMIN_ROLE) { _pause(); }
     function unpause() external onlyRole(ADMIN_ROLE) { _unpause(); }
+
+    function _fundFromTreasury(uint256 totalUsdc, uint256 totalEurc) internal {
+        uint256 usdcBalance = usdc.balanceOf(address(this));
+        uint256 eurcBalance = eurc.balanceOf(address(this));
+
+        uint256 usdcNeeded = totalUsdc > usdcBalance ? totalUsdc - usdcBalance : 0;
+        uint256 eurcNeeded = totalEurc > eurcBalance ? totalEurc - eurcBalance : 0;
+
+        if (usdcNeeded > 0 || eurcNeeded > 0) {
+            ITreasuryVault(treasuryVault).fundDistributor(address(this), usdcNeeded, eurcNeeded);
+        }
+
+        require(usdc.balanceOf(address(this)) >= totalUsdc, "Insufficient USDC reserves");
+        require(eurc.balanceOf(address(this)) >= totalEurc, "Insufficient EURC reserves");
+    }
 
     function _authorizeUpgrade(address newImpl) internal override onlyRole(UPGRADER_ROLE) {}
 }

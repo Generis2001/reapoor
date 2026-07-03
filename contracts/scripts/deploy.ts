@@ -67,9 +67,14 @@ async function main() {
   // 5. Wire distributor to staking + liquidity managers
   console.log("\nWiring RewardDistributor to managers...");
   const DISTRIBUTOR_ROLE = ethers.keccak256(ethers.toUtf8Bytes("DISTRIBUTOR_ROLE"));
+  const TREASURER_ROLE = ethers.keccak256(ethers.toUtf8Bytes("TREASURER_ROLE"));
   await (await staking.grantRole(DISTRIBUTOR_ROLE, distributorAddr)).wait();
   await (await liquidity.grantRole(DISTRIBUTOR_ROLE, distributorAddr)).wait();
+  await (await treasury.grantRole(TREASURER_ROLE, distributorAddr)).wait();
+  await (await distributor.setManagers(stakingAddr, liquidityAddr)).wait();
   console.log("✓ DISTRIBUTOR_ROLE granted");
+  console.log("✓ TREASURER_ROLE granted to RewardDistributor");
+  console.log("✓ RewardDistributor manager addresses set");
 
   console.log("\n============================================");
   console.log("DEPLOYMENT COMPLETE — Update src/lib/contracts.ts:");

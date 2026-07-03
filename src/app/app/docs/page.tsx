@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { USDCIcon, EURCIcon } from "@/components/ui/TokenIcon";
 import { Card } from "@/components/ui/Card";
 import { BookOpen, Code2, Shield, ExternalLink } from "lucide-react";
