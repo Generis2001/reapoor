@@ -8,9 +8,12 @@ export function cn(...inputs: ClassValue[]) {
 
 export function formatToken(value: bigint, decimals = 6, displayDecimals = 2): string {
   const num = parseFloat(formatUnits(value, decimals));
+  const threshold = 1 / 10 ** displayDecimals;
+  const shouldExpandPrecision = num > 0 && num < threshold;
+
   return num.toLocaleString("en-US", {
-    minimumFractionDigits: displayDecimals,
-    maximumFractionDigits: displayDecimals,
+    minimumFractionDigits: shouldExpandPrecision ? Math.min(displayDecimals, 6) : displayDecimals,
+    maximumFractionDigits: shouldExpandPrecision ? 6 : displayDecimals,
   });
 }
 

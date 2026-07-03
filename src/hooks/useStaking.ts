@@ -22,7 +22,7 @@ export function useStakingPosition() {
     abi: STAKING_ABI,
     functionName: "getPendingRewards",
     args: address ? [address] : undefined,
-    query: { enabled: !!address },
+    query: { enabled: !!address, refetchInterval: 15_000 },
   });
 
   const { data: pool } = useReadContract({
@@ -36,7 +36,7 @@ export function useStakingPosition() {
     abi: STAKING_ABI,
     functionName: "lifetimeUsdcEarned",
     args: address ? [address] : undefined,
-    query: { enabled: !!address },
+    query: { enabled: !!address, refetchInterval: 15_000 },
   });
 
   const { data: lifetimeEurc } = useReadContract({
@@ -44,7 +44,7 @@ export function useStakingPosition() {
     abi: STAKING_ABI,
     functionName: "lifetimeEurcEarned",
     args: address ? [address] : undefined,
-    query: { enabled: !!address },
+    query: { enabled: !!address, refetchInterval: 15_000 },
   });
 
   const { data: totalStakers } = useReadContract({
