@@ -29,13 +29,14 @@ export const METRICS_FALLBACK: ProtocolMetrics = {
 const STAKING_ABI = parseAbi([
   "function pool() view returns (uint256 totalUsdcStaked, uint256 totalEurcStaked, uint256 accUsdcRewardPerShare, uint256 accEurcRewardPerShare, uint256 usdcApy, uint256 eurcApy, uint256 lastRewardBlock)",
   "function totalUniqueStakers() view returns (uint256)",
-  "function totalUsdcDistributed() view returns (uint256)",
-  "function totalEurcDistributed() view returns (uint256)",
 ]);
 
 const LIQ_ABI = parseAbi([
   "function liqPool() view returns (uint256 totalUsdcDeposited, uint256 totalEurcDeposited, uint256 totalUsdcShares, uint256 totalEurcShares, uint256 accUsdcRewardPerShare, uint256 accEurcRewardPerShare, uint256 usdcApy, uint256 eurcApy)",
   "function totalProviders() view returns (uint256)",
+]);
+
+const DISTRIBUTOR_ABI = parseAbi([
   "function totalUsdcDistributed() view returns (uint256)",
   "function totalEurcDistributed() view returns (uint256)",
 ]);
@@ -54,21 +55,17 @@ export async function getProtocolMetrics(): Promise<ProtocolMetrics> {
   const [
     stakingPoolResult,
     totalUniqueStakersResult,
-    stakingUsdcDistributedResult,
-    stakingEurcDistributedResult,
     liquidityPoolResult,
     totalProvidersResult,
-    liquidityUsdcDistributedResult,
-    liquidityEurcDistributedResult,
+    distributorUsdcDistributedResult,
+    distributorEurcDistributedResult,
   ] = await Promise.allSettled([
     client.readContract({ address: CONTRACT_ADDRESSES.StakingManager, abi: STAKING_ABI, functionName: "pool" }),
     client.readContract({ address: CONTRACT_ADDRESSES.StakingManager, abi: STAKING_ABI, functionName: "totalUniqueStakers" }),
-    client.readContract({ address: CONTRACT_ADDRESSES.StakingManager, abi: STAKING_ABI, functionName: "totalUsdcDistributed" }),
-    client.readContract({ address: CONTRACT_ADDRESSES.StakingManager, abi: STAKING_ABI, functionName: "totalEurcDistributed" }),
     client.readContract({ address: CONTRACT_ADDRESSES.LiquidityManager, abi: LIQ_ABI, functionName: "liqPool" }),
     client.readContract({ address: CONTRACT_ADDRESSES.LiquidityManager, abi: LIQ_ABI, functionName: "totalProviders" }),
-    client.readContract({ address: CONTRACT_ADDRESSES.LiquidityManager, abi: LIQ_ABI, functionName: "totalUsdcDistributed" }),
-    client.readContract({ address: CONTRACT_ADDRESSES.LiquidityManager, abi: LIQ_ABI, functionName: "totalEurcDistributed" }),
+    client.readContract({ address: CONTRACT_ADDRESSES.RewardDistributor, abi: DISTRIBUTOR_ABI, functionName: "totalUsdcDistributed" }),
+    client.readContract({ address: CONTRACT_ADDRESSES.RewardDistributor, abi: DISTRIBUTOR_ABI, functionName: "totalEurcDistributed" }),
   ]);
 
   // Staking pool state
@@ -84,9 +81,7 @@ export async function getProtocolMetrics(): Promise<ProtocolMetrics> {
     eurcStakingApy = Number(p[5]) / 100;
   }
 
-  const stakers            = totalUniqueStakersResult.status === "fulfilled" ? Number(totalUniqueStakersResult.value) : 0;
-  const stakingUsdcDist    = stakingUsdcDistributedResult.status === "fulfilled" ? Number(stakingUsdcDistributedResult.value) / div : 0;
-  const stakingEurcDist    = stakingEurcDistributedResult.status === "fulfilled" ? Number(stakingEurcDistributedResult.value) / div : 0;
+  const stakers = totalUniqueStakersResult.status === "fulfilled" ? Number(totalUniqueStakersResult.value) : 0;
 
   // Liquidity pool state
   let totalUsdcDeposited = 0, totalEurcDeposited = 0;
@@ -101,9 +96,9 @@ export async function getProtocolMetrics(): Promise<ProtocolMetrics> {
     eurcLpApy = Number(lp[7]) / 100;
   }
 
-  const providers       = totalProvidersResult.status === "fulfilled" ? Number(totalProvidersResult.value) : 0;
-  const liqUsdcDist     = liquidityUsdcDistributedResult.status === "fulfilled" ? Number(liquidityUsdcDistributedResult.value) / div : 0;
-  const liqEurcDist     = liquidityEurcDistributedResult.status === "fulfilled" ? Number(liquidityEurcDistributedResult.value) / div : 0;
+  const providers = totalProvidersResult.status === "fulfilled" ? Number(totalProvidersResult.value) : 0;
+  const distributorUsdcDist = distributorUsdcDistributedResult.status === "fulfilled" ? Number(distributorUsdcDistributedResult.value) / div : 0;
+  const distributorEurcDist = distributorEurcDistributedResult.status === "fulfilled" ? Number(distributorEurcDistributedResult.value) / div : 0;
 
   // Arc RPC limits historical log ranges, so totalDeposits mirrors current live capital.
   const tvl =
@@ -115,10 +110,9 @@ export async function getProtocolMetrics(): Promise<ProtocolMetrics> {
     (totalEurcStaked + totalEurcDeposited) * EURC_USD_RATE;
 
   // Cumulative rewards distributed: contract state (totalUsdcDistributed / totalEurcDistributed)
-  // already tracks all rewards ever pushed via addRewards().
+  // uses the distributor totals because manager-level counters advance only on pool settlement.
   const rewardsDistributed =
-    stakingUsdcDist + liqUsdcDist +
-    (stakingEurcDist + liqEurcDist) * EURC_USD_RATE;
+    distributorUsdcDist + distributorEurcDist * EURC_USD_RATE;
 
   // Active users = current stakers + current LP providers (simple union approximation)
   const activeUsers = stakers + providers;
