@@ -20,15 +20,24 @@ async function main() {
   await importProxy(CONTRACTS.liquidity, LiquidityManager);
   await importProxy(CONTRACTS.distributor, RewardDistributor);
 
-  const staking = await upgrades.upgradeProxy(CONTRACTS.staking, StakingManager, { kind: "uups" });
+  const staking = await upgrades.upgradeProxy(CONTRACTS.staking, StakingManager, {
+    kind: "uups",
+    redeployImplementation: "always",
+  });
   await staking.waitForDeployment();
   console.log("✓ StakingManager upgraded");
 
-  const liquidity = await upgrades.upgradeProxy(CONTRACTS.liquidity, LiquidityManager, { kind: "uups" });
+  const liquidity = await upgrades.upgradeProxy(CONTRACTS.liquidity, LiquidityManager, {
+    kind: "uups",
+    redeployImplementation: "always",
+  });
   await liquidity.waitForDeployment();
   console.log("✓ LiquidityManager upgraded");
 
-  const distributor = await upgrades.upgradeProxy(CONTRACTS.distributor, RewardDistributor, { kind: "uups" });
+  const distributor = await upgrades.upgradeProxy(CONTRACTS.distributor, RewardDistributor, {
+    kind: "uups",
+    redeployImplementation: "always",
+  });
   await distributor.waitForDeployment();
   console.log("✓ RewardDistributor upgraded");
 

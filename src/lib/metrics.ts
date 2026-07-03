@@ -1,4 +1,4 @@
-import { createPublicClient, http, parseAbi, parseAbiItem } from "viem";
+import { createPublicClient, http, parseAbi } from "viem";
 import { arcTestnet } from "./chains";
 import { CONTRACT_ADDRESSES } from "./contracts";
 
@@ -40,8 +40,6 @@ const LIQ_ABI = parseAbi([
   "function totalEurcDistributed() view returns (uint256)",
 ]);
 
-const ERC20_DEC_ABI = parseAbi(["function decimals() view returns (uint8)"]);
-
 // EURC/USD approximation for display purposes on testnet
 const EURC_USD_RATE = 1.08;
 
@@ -51,31 +49,34 @@ const client = createPublicClient({
 });
 
 export async function getProtocolMetrics(): Promise<ProtocolMetrics> {
-  // ── 1. Multicall: all contract state reads in one round-trip ──────────────
-  const [r0, r1, r2, r3, r4, r5, r6, r7, r8] = await client.multicall({
-    contracts: [
-      { address: CONTRACT_ADDRESSES.USDC,             abi: ERC20_DEC_ABI, functionName: "decimals" },
-      { address: CONTRACT_ADDRESSES.StakingManager,   abi: STAKING_ABI,   functionName: "pool" },
-      { address: CONTRACT_ADDRESSES.StakingManager,   abi: STAKING_ABI,   functionName: "totalUniqueStakers" },
-      { address: CONTRACT_ADDRESSES.StakingManager,   abi: STAKING_ABI,   functionName: "totalUsdcDistributed" },
-      { address: CONTRACT_ADDRESSES.StakingManager,   abi: STAKING_ABI,   functionName: "totalEurcDistributed" },
-      { address: CONTRACT_ADDRESSES.LiquidityManager, abi: LIQ_ABI,       functionName: "liqPool" },
-      { address: CONTRACT_ADDRESSES.LiquidityManager, abi: LIQ_ABI,       functionName: "totalProviders" },
-      { address: CONTRACT_ADDRESSES.LiquidityManager, abi: LIQ_ABI,       functionName: "totalUsdcDistributed" },
-      { address: CONTRACT_ADDRESSES.LiquidityManager, abi: LIQ_ABI,       functionName: "totalEurcDistributed" },
-    ],
-    allowFailure: true,
-  });
+  const div = 1_000_000;
 
-  const decimals = r0.status === "success" ? Number(r0.result) : 6;
-  const div = 10 ** decimals;
+  const [
+    stakingPoolResult,
+    totalUniqueStakersResult,
+    stakingUsdcDistributedResult,
+    stakingEurcDistributedResult,
+    liquidityPoolResult,
+    totalProvidersResult,
+    liquidityUsdcDistributedResult,
+    liquidityEurcDistributedResult,
+  ] = await Promise.allSettled([
+    client.readContract({ address: CONTRACT_ADDRESSES.StakingManager, abi: STAKING_ABI, functionName: "pool" }),
+    client.readContract({ address: CONTRACT_ADDRESSES.StakingManager, abi: STAKING_ABI, functionName: "totalUniqueStakers" }),
+    client.readContract({ address: CONTRACT_ADDRESSES.StakingManager, abi: STAKING_ABI, functionName: "totalUsdcDistributed" }),
+    client.readContract({ address: CONTRACT_ADDRESSES.StakingManager, abi: STAKING_ABI, functionName: "totalEurcDistributed" }),
+    client.readContract({ address: CONTRACT_ADDRESSES.LiquidityManager, abi: LIQ_ABI, functionName: "liqPool" }),
+    client.readContract({ address: CONTRACT_ADDRESSES.LiquidityManager, abi: LIQ_ABI, functionName: "totalProviders" }),
+    client.readContract({ address: CONTRACT_ADDRESSES.LiquidityManager, abi: LIQ_ABI, functionName: "totalUsdcDistributed" }),
+    client.readContract({ address: CONTRACT_ADDRESSES.LiquidityManager, abi: LIQ_ABI, functionName: "totalEurcDistributed" }),
+  ]);
 
   // Staking pool state
   let totalUsdcStaked = 0, totalEurcStaked = 0;
   let usdcStakingApy = METRICS_FALLBACK.usdcStakingApy;
   let eurcStakingApy = METRICS_FALLBACK.eurcStakingApy;
-  if (r1.status === "success") {
-    const p = r1.result as unknown as readonly [bigint, bigint, bigint, bigint, bigint, bigint, bigint];
+  if (stakingPoolResult.status === "fulfilled") {
+    const p = stakingPoolResult.value as unknown as readonly [bigint, bigint, bigint, bigint, bigint, bigint, bigint];
     // [totalUsdcStaked, totalEurcStaked, accUsdcRPS, accEurcRPS, usdcApy, eurcApy, lastRewardBlock]
     totalUsdcStaked = Number(p[0]) / div;
     totalEurcStaked = Number(p[1]) / div;
@@ -83,16 +84,16 @@ export async function getProtocolMetrics(): Promise<ProtocolMetrics> {
     eurcStakingApy = Number(p[5]) / 100;
   }
 
-  const stakers            = r2.status === "success" ? Number(r2.result)          : 0;
-  const stakingUsdcDist    = r3.status === "success" ? Number(r3.result) / div     : 0;
-  const stakingEurcDist    = r4.status === "success" ? Number(r4.result) / div     : 0;
+  const stakers            = totalUniqueStakersResult.status === "fulfilled" ? Number(totalUniqueStakersResult.value) : 0;
+  const stakingUsdcDist    = stakingUsdcDistributedResult.status === "fulfilled" ? Number(stakingUsdcDistributedResult.value) / div : 0;
+  const stakingEurcDist    = stakingEurcDistributedResult.status === "fulfilled" ? Number(stakingEurcDistributedResult.value) / div : 0;
 
   // Liquidity pool state
   let totalUsdcDeposited = 0, totalEurcDeposited = 0;
   let usdcLpApy = METRICS_FALLBACK.usdcLpApy;
   let eurcLpApy = METRICS_FALLBACK.eurcLpApy;
-  if (r5.status === "success") {
-    const lp = r5.result as unknown as readonly [bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint];
+  if (liquidityPoolResult.status === "fulfilled") {
+    const lp = liquidityPoolResult.value as unknown as readonly [bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint];
     // [totalUsdcDeposited, totalEurcDeposited, totalUsdcShares, totalEurcShares, accUsdcRPS, accEurcRPS, usdcApy, eurcApy]
     totalUsdcDeposited = Number(lp[0]) / div;
     totalEurcDeposited = Number(lp[1]) / div;
@@ -100,50 +101,18 @@ export async function getProtocolMetrics(): Promise<ProtocolMetrics> {
     eurcLpApy = Number(lp[7]) / 100;
   }
 
-  const providers       = r6.status === "success" ? Number(r6.result)         : 0;
-  const liqUsdcDist     = r7.status === "success" ? Number(r7.result) / div   : 0;
-  const liqEurcDist     = r8.status === "success" ? Number(r8.result) / div   : 0;
+  const providers       = totalProvidersResult.status === "fulfilled" ? Number(totalProvidersResult.value) : 0;
+  const liqUsdcDist     = liquidityUsdcDistributedResult.status === "fulfilled" ? Number(liquidityUsdcDistributedResult.value) / div : 0;
+  const liqEurcDist     = liquidityEurcDistributedResult.status === "fulfilled" ? Number(liquidityEurcDistributedResult.value) / div : 0;
 
-  // ── 2. Event log scan: historical deposit totals ──────────────────────────
-  // Scan Staked + LiquidityAdded events from contract deployment onwards.
-  let histUsdcDeposited = 0, histEurcDeposited = 0;
-  try {
-    const [stakedLogs, liqLogs] = await Promise.all([
-      client.getLogs({
-        address: CONTRACT_ADDRESSES.StakingManager,
-        event: parseAbiItem(
-          "event Staked(address indexed user, uint256 usdcAmount, uint256 eurcAmount)"
-        ),
-        fromBlock: BigInt(0),
-        toBlock: "latest",
-      }),
-      client.getLogs({
-        address: CONTRACT_ADDRESSES.LiquidityManager,
-        event: parseAbiItem(
-          "event LiquidityAdded(address indexed user, uint256 usdcAmount, uint256 eurcAmount)"
-        ),
-        fromBlock: BigInt(0),
-        toBlock: "latest",
-      }),
-    ]);
-
-    for (const log of [...stakedLogs, ...liqLogs]) {
-      histUsdcDeposited += Number(log.args.usdcAmount ?? BigInt(0)) / div;
-      histEurcDeposited += Number(log.args.eurcAmount ?? BigInt(0)) / div;
-    }
-  } catch {
-    // Fall back to current TVL if event scan fails
-    histUsdcDeposited = totalUsdcStaked + totalUsdcDeposited;
-    histEurcDeposited = totalEurcStaked + totalEurcDeposited;
-  }
-
-  // ── 3. Aggregate ──────────────────────────────────────────────────────────
+  // Arc RPC limits historical log ranges, so totalDeposits mirrors current live capital.
   const tvl =
     totalUsdcStaked + totalUsdcDeposited +
     (totalEurcStaked + totalEurcDeposited) * EURC_USD_RATE;
 
   const totalDeposits =
-    histUsdcDeposited + histEurcDeposited * EURC_USD_RATE;
+    totalUsdcStaked + totalUsdcDeposited +
+    (totalEurcStaked + totalEurcDeposited) * EURC_USD_RATE;
 
   // Cumulative rewards distributed: contract state (totalUsdcDistributed / totalEurcDistributed)
   // already tracks all rewards ever pushed via addRewards().
