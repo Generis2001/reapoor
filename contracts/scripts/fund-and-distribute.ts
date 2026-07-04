@@ -1,4 +1,5 @@
 import { ethers } from "hardhat";
+import type { Contract } from "ethers";
 
 const ADDRS = {
   usdc: "0x3600000000000000000000000000000000000000",
@@ -47,7 +48,7 @@ async function main() {
 }
 
 async function ensureAllowance(
-  token: ethers.Contract,
+  token: Contract,
   owner: string,
   spender: string,
   amount: bigint,
