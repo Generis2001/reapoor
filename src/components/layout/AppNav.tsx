@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { useAccount } from "wagmi";
+import { useAccount, useDisconnect } from "wagmi";
 import { usePrivy } from "@privy-io/react-auth";
 import { cn, shortAddress } from "@/lib/utils";
 import { LayoutDashboard, Layers, Droplets, Gift, BookOpen, Wallet, LogOut, Menu, X, ExternalLink } from "lucide-react";
@@ -22,13 +22,26 @@ const navItems = [
 export function AppNav() {
   const pathname = usePathname();
   const { address, isConnected } = useAccount();
+  const { disconnectAsync } = useDisconnect();
   const { login, logout, ready } = usePrivy();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
 
   const handleDisconnect = useCallback(async () => {
     setMobileOpen(false);
-    await logout();
-  }, [logout]);
+    setDisconnecting(true);
+    try {
+      await disconnectAsync();
+    } catch {
+      // Some connectors do not expose a disconnect flow.
+    }
+
+    try {
+      await logout();
+    } finally {
+      setDisconnecting(false);
+    }
+  }, [disconnectAsync, logout]);
 
   return (
     <>
@@ -80,9 +93,10 @@ export function AppNav() {
               </a>
               <button
                 onClick={handleDisconnect}
-                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-500 hover:bg-red-50 rounded-xl transition-colors"
+                disabled={disconnecting}
+                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-500 hover:bg-red-50 rounded-xl transition-colors disabled:opacity-50"
               >
-                <LogOut className="w-3.5 h-3.5" /> Disconnect
+                <LogOut className="w-3.5 h-3.5" /> {disconnecting ? "Disconnecting..." : "Disconnect"}
               </button>
             </div>
           ) : (
@@ -137,8 +151,12 @@ export function AppNav() {
                   <div className="w-2 h-2 bg-emerald-400 rounded-full" />
                   <span className="font-mono text-slate-700">{shortAddress(address)}</span>
                 </div>
-                <button onClick={handleDisconnect} className="w-full px-4 py-3 text-sm text-red-500 flex items-center gap-2">
-                  <LogOut className="w-4 h-4" /> Disconnect
+                <button
+                  onClick={handleDisconnect}
+                  disabled={disconnecting}
+                  className="w-full px-4 py-3 text-sm text-red-500 flex items-center gap-2 disabled:opacity-50"
+                >
+                  <LogOut className="w-4 h-4" /> {disconnecting ? "Disconnecting..." : "Disconnect"}
                 </button>
               </div>
             ) : (

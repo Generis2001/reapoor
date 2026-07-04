@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useAccount } from "wagmi";
+import { useAccount, useDisconnect } from "wagmi";
 import { usePrivy } from "@privy-io/react-auth";
 import { Button } from "@/components/ui/Button";
 import { shortAddress } from "@/lib/utils";
@@ -13,13 +13,26 @@ import { ARCSCAN_ADDR } from "@/lib/config";
 
 export function Header() {
   const { address, isConnected } = useAccount();
+  const { disconnectAsync } = useDisconnect();
   const { login, logout, ready } = usePrivy();
   const [dropOpen, setDropOpen] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
 
   const handleDisconnect = useCallback(async () => {
     setDropOpen(false);
-    await logout();
-  }, [logout]);
+    setDisconnecting(true);
+    try {
+      await disconnectAsync();
+    } catch {
+      // Some connectors do not expose a disconnect flow.
+    }
+
+    try {
+      await logout();
+    } finally {
+      setDisconnecting(false);
+    }
+  }, [disconnectAsync, logout]);
   const [scrolled, setScrolled] = useState(false);
   const dropRef = useRef<HTMLDivElement>(null);
 
@@ -88,9 +101,10 @@ export function Header() {
                   </a>
                   <button
                     onClick={handleDisconnect}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-xl"
+                    disabled={disconnecting}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-xl disabled:opacity-50"
                   >
-                    <LogOut className="w-4 h-4" /> Disconnect
+                    <LogOut className="w-4 h-4" /> {disconnecting ? "Disconnecting..." : "Disconnect"}
                   </button>
                 </div>
               )}
