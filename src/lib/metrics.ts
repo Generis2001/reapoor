@@ -14,18 +14,6 @@ export interface ProtocolMetrics {
   updatedAt: number;
 }
 
-export const METRICS_FALLBACK: ProtocolMetrics = {
-  tvl: 0,
-  totalDeposits: 0,
-  rewardsDistributed: 0,
-  activeUsers: 0,
-  usdcStakingApy: 8.0,
-  eurcStakingApy: 7.5,
-  usdcLpApy: 9.0,
-  eurcLpApy: 8.5,
-  updatedAt: 0,
-};
-
 const STAKING_ABI = parseAbi([
   "function pool() view returns (uint256 totalUsdcStaked, uint256 totalEurcStaked, uint256 accUsdcRewardPerShare, uint256 accEurcRewardPerShare, uint256 usdcApy, uint256 eurcApy, uint256 lastRewardBlock)",
   "function totalUniqueStakers() view returns (uint256)",
@@ -53,13 +41,13 @@ export async function getProtocolMetrics(): Promise<ProtocolMetrics> {
   const div = 1_000_000;
 
   const [
-    stakingPoolResult,
-    totalUniqueStakersResult,
-    liquidityPoolResult,
-    totalProvidersResult,
-    distributorUsdcDistributedResult,
-    distributorEurcDistributedResult,
-  ] = await Promise.allSettled([
+    stakingPool,
+    totalUniqueStakers,
+    liquidityPool,
+    totalProviders,
+    distributorUsdcDistributed,
+    distributorEurcDistributed,
+  ] = await Promise.all([
     client.readContract({ address: CONTRACT_ADDRESSES.StakingManager, abi: STAKING_ABI, functionName: "pool" }),
     client.readContract({ address: CONTRACT_ADDRESSES.StakingManager, abi: STAKING_ABI, functionName: "totalUniqueStakers" }),
     client.readContract({ address: CONTRACT_ADDRESSES.LiquidityManager, abi: LIQ_ABI, functionName: "liqPool" }),
@@ -68,37 +56,23 @@ export async function getProtocolMetrics(): Promise<ProtocolMetrics> {
     client.readContract({ address: CONTRACT_ADDRESSES.RewardDistributor, abi: DISTRIBUTOR_ABI, functionName: "totalEurcDistributed" }),
   ]);
 
-  // Staking pool state
-  let totalUsdcStaked = 0, totalEurcStaked = 0;
-  let usdcStakingApy = METRICS_FALLBACK.usdcStakingApy;
-  let eurcStakingApy = METRICS_FALLBACK.eurcStakingApy;
-  if (stakingPoolResult.status === "fulfilled") {
-    const p = stakingPoolResult.value as unknown as readonly [bigint, bigint, bigint, bigint, bigint, bigint, bigint];
-    // [totalUsdcStaked, totalEurcStaked, accUsdcRPS, accEurcRPS, usdcApy, eurcApy, lastRewardBlock]
-    totalUsdcStaked = Number(p[0]) / div;
-    totalEurcStaked = Number(p[1]) / div;
-    usdcStakingApy = Number(p[4]) / 100;
-    eurcStakingApy = Number(p[5]) / 100;
-  }
+  const staking = stakingPool as unknown as readonly [bigint, bigint, bigint, bigint, bigint, bigint, bigint];
+  const liquidity = liquidityPool as unknown as readonly [bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint];
 
-  const stakers = totalUniqueStakersResult.status === "fulfilled" ? Number(totalUniqueStakersResult.value) : 0;
+  const totalUsdcStaked = Number(staking[0]) / div;
+  const totalEurcStaked = Number(staking[1]) / div;
+  const usdcStakingApy = Number(staking[4]) / 100;
+  const eurcStakingApy = Number(staking[5]) / 100;
 
-  // Liquidity pool state
-  let totalUsdcDeposited = 0, totalEurcDeposited = 0;
-  let usdcLpApy = METRICS_FALLBACK.usdcLpApy;
-  let eurcLpApy = METRICS_FALLBACK.eurcLpApy;
-  if (liquidityPoolResult.status === "fulfilled") {
-    const lp = liquidityPoolResult.value as unknown as readonly [bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint];
-    // [totalUsdcDeposited, totalEurcDeposited, totalUsdcShares, totalEurcShares, accUsdcRPS, accEurcRPS, usdcApy, eurcApy]
-    totalUsdcDeposited = Number(lp[0]) / div;
-    totalEurcDeposited = Number(lp[1]) / div;
-    usdcLpApy = Number(lp[6]) / 100;
-    eurcLpApy = Number(lp[7]) / 100;
-  }
+  const totalUsdcDeposited = Number(liquidity[0]) / div;
+  const totalEurcDeposited = Number(liquidity[1]) / div;
+  const usdcLpApy = Number(liquidity[6]) / 100;
+  const eurcLpApy = Number(liquidity[7]) / 100;
 
-  const providers = totalProvidersResult.status === "fulfilled" ? Number(totalProvidersResult.value) : 0;
-  const distributorUsdcDist = distributorUsdcDistributedResult.status === "fulfilled" ? Number(distributorUsdcDistributedResult.value) / div : 0;
-  const distributorEurcDist = distributorEurcDistributedResult.status === "fulfilled" ? Number(distributorEurcDistributedResult.value) / div : 0;
+  const stakers = Number(totalUniqueStakers);
+  const providers = Number(totalProviders);
+  const distributorUsdcDist = Number(distributorUsdcDistributed) / div;
+  const distributorEurcDist = Number(distributorEurcDistributed) / div;
 
   // Arc RPC limits historical log ranges, so totalDeposits mirrors current live capital.
   const tvl =
@@ -114,7 +88,7 @@ export async function getProtocolMetrics(): Promise<ProtocolMetrics> {
   const rewardsDistributed =
     distributorUsdcDist + distributorEurcDist * EURC_USD_RATE;
 
-  // Active users = current stakers + current LP providers (simple union approximation)
+  // Current on-chain position count: active staking positions plus active LP positions.
   const activeUsers = stakers + providers;
 
   return {

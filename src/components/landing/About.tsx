@@ -36,10 +36,11 @@ const features = [
 ];
 
 interface Props {
-  metrics: Pick<ProtocolMetrics, "usdcStakingApy" | "eurcStakingApy" | "usdcLpApy" | "eurcLpApy">;
+  metrics: Pick<ProtocolMetrics, "usdcStakingApy" | "eurcStakingApy" | "usdcLpApy" | "eurcLpApy"> | null;
 }
 
-function fmtApy(n: number) {
+function fmtApy(n: number | null | undefined) {
+  if (n == null) return "--";
   return `${n.toFixed(1)}%`;
 }
 
@@ -74,20 +75,20 @@ export function About({ metrics }: Props) {
           <div className="grid grid-cols-2 gap-4">
             <div className="p-6 rounded-2xl bg-gradient-to-br from-blue-600 to-blue-700 text-white">
               <USDCIcon size="lg" className="mb-4" />
-              <div className="text-3xl font-bold mb-1">{fmtApy(metrics.usdcStakingApy)}</div>
+              <div className="text-3xl font-bold mb-1">{fmtApy(metrics?.usdcStakingApy)}</div>
               <div className="text-blue-200 text-sm">USDC Staking APY</div>
             </div>
             <div className="p-6 rounded-2xl bg-gradient-to-br from-sky-500 to-blue-600 text-white">
               <EURCIcon size="lg" className="mb-4" />
-              <div className="text-3xl font-bold mb-1">{fmtApy(metrics.eurcStakingApy)}</div>
+              <div className="text-3xl font-bold mb-1">{fmtApy(metrics?.eurcStakingApy)}</div>
               <div className="text-sky-200 text-sm">EURC Staking APY</div>
             </div>
             <div className="p-6 rounded-2xl bg-blue-50 border border-blue-100">
-              <div className="text-3xl font-bold text-blue-700 mb-1">{fmtApy(metrics.usdcLpApy)}</div>
+              <div className="text-3xl font-bold text-blue-700 mb-1">{fmtApy(metrics?.usdcLpApy)}</div>
               <div className="text-blue-600 text-sm font-medium">USDC LP APY</div>
             </div>
             <div className="p-6 rounded-2xl bg-blue-50 border border-blue-100">
-              <div className="text-3xl font-bold text-blue-700 mb-1">{fmtApy(metrics.eurcLpApy)}</div>
+              <div className="text-3xl font-bold text-blue-700 mb-1">{fmtApy(metrics?.eurcLpApy)}</div>
               <div className="text-blue-600 text-sm font-medium">EURC LP APY</div>
             </div>
           </div>

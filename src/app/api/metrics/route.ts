@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getProtocolMetrics, METRICS_FALLBACK } from "@/lib/metrics";
+import { getProtocolMetrics } from "@/lib/metrics";
 
 // Revalidate cached response every 60 seconds
 export const revalidate = 60;
@@ -13,8 +13,12 @@ export async function GET() {
       },
     });
   } catch {
-    return NextResponse.json(METRICS_FALLBACK, {
-      headers: { "Cache-Control": "public, s-maxage=10" },
-    });
+    return NextResponse.json(
+      { error: "Unable to fetch live protocol metrics" },
+      {
+        status: 503,
+        headers: { "Cache-Control": "public, s-maxage=10" },
+      }
+    );
   }
 }

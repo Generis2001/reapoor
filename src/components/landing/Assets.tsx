@@ -19,10 +19,11 @@ const eurcPoints = [
 ];
 
 interface Props {
-  metrics: Pick<ProtocolMetrics, "usdcStakingApy" | "eurcStakingApy" | "usdcLpApy" | "eurcLpApy">;
+  metrics: Pick<ProtocolMetrics, "usdcStakingApy" | "eurcStakingApy" | "usdcLpApy" | "eurcLpApy"> | null;
 }
 
-function fmtApy(n: number) {
+function fmtApy(n: number | null | undefined) {
+  if (n == null) return "--";
   return `${n.toFixed(1)}%`;
 }
 
@@ -57,11 +58,11 @@ export function Assets({ metrics }: Props) {
               </div>
               <div className="relative grid grid-cols-2 gap-4">
                 <div className="bg-white/10 rounded-xl p-3">
-                  <div className="text-xl font-bold">{fmtApy(metrics.usdcStakingApy)}</div>
+                  <div className="text-xl font-bold">{fmtApy(metrics?.usdcStakingApy)}</div>
                   <div className="text-blue-200 text-xs">Staking APY</div>
                 </div>
                 <div className="bg-white/10 rounded-xl p-3">
-                  <div className="text-xl font-bold">{fmtApy(metrics.usdcLpApy)}</div>
+                  <div className="text-xl font-bold">{fmtApy(metrics?.usdcLpApy)}</div>
                   <div className="text-blue-200 text-xs">LP APY</div>
                 </div>
               </div>
@@ -98,11 +99,11 @@ export function Assets({ metrics }: Props) {
               </div>
               <div className="relative grid grid-cols-2 gap-4">
                 <div className="bg-white/10 rounded-xl p-3">
-                  <div className="text-xl font-bold">{fmtApy(metrics.eurcStakingApy)}</div>
+                  <div className="text-xl font-bold">{fmtApy(metrics?.eurcStakingApy)}</div>
                   <div className="text-sky-200 text-xs">Staking APY</div>
                 </div>
                 <div className="bg-white/10 rounded-xl p-3">
-                  <div className="text-xl font-bold">{fmtApy(metrics.eurcLpApy)}</div>
+                  <div className="text-xl font-bold">{fmtApy(metrics?.eurcLpApy)}</div>
                   <div className="text-sky-200 text-xs">LP APY</div>
                 </div>
               </div>

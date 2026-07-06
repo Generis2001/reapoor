@@ -8,19 +8,19 @@ import { WhyArc } from "@/components/landing/WhyArc";
 import { Security } from "@/components/landing/Security";
 import { GetTestnetAssets } from "@/components/landing/GetTestnetAssets";
 import { FAQ } from "@/components/landing/FAQ";
-import { getProtocolMetrics, METRICS_FALLBACK } from "@/lib/metrics";
+import { getProtocolMetrics } from "@/lib/metrics";
 
 // Revalidate this page every 60 seconds (ISR)
 export const revalidate = 60;
 
 export default async function LandingPage() {
-  const metrics = await getProtocolMetrics().catch(() => METRICS_FALLBACK);
+  const metrics = await getProtocolMetrics().catch(() => null);
 
   return (
     <>
       <Header />
       <main>
-        <Hero />
+        <Hero initialMetrics={metrics} />
         <About metrics={metrics} />
         <HowItWorks />
         <Assets metrics={metrics} />
