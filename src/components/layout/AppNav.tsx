@@ -6,8 +6,8 @@ import { usePathname } from "next/navigation";
 import { useAccount, useDisconnect } from "wagmi";
 import { usePrivy } from "@privy-io/react-auth";
 import { cn, shortAddress } from "@/lib/utils";
-import { LayoutDashboard, Layers, Droplets, Gift, BookOpen, Wallet, LogOut, Menu, X, ExternalLink } from "lucide-react";
-import { useState, useCallback } from "react";
+import { LayoutDashboard, Layers, Droplets, Gift, BookOpen, Wallet, LogOut, Menu, X, ExternalLink, Copy, Check } from "lucide-react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/Button";
 import { ARCSCAN_ADDR } from "@/lib/config";
 
@@ -18,6 +18,91 @@ const navItems = [
   { href: "/app/rewards", label: "Rewards", icon: Gift },
   { href: "/app/docs", label: "Documentation", icon: BookOpen },
 ];
+
+async function copyText(text: string) {
+  if (navigator.clipboard && window.isSecureContext) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  const textArea = document.createElement("textarea");
+  textArea.value = text;
+  textArea.setAttribute("readonly", "");
+  textArea.style.position = "fixed";
+  textArea.style.opacity = "0";
+  document.body.appendChild(textArea);
+  textArea.select();
+
+  const copied = document.execCommand("copy");
+  textArea.remove();
+
+  if (!copied) {
+    throw new Error("Unable to copy wallet address");
+  }
+}
+
+function CopyAddressButton({ address }: { address: string }) {
+  const [status, setStatus] = useState<"idle" | "copied" | "error">("idle");
+  const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (resetTimer.current) clearTimeout(resetTimer.current);
+    };
+  }, []);
+
+  const handleCopy = useCallback(async () => {
+    if (resetTimer.current) clearTimeout(resetTimer.current);
+
+    try {
+      await copyText(address);
+      setStatus("copied");
+    } catch {
+      setStatus("error");
+    }
+
+    resetTimer.current = setTimeout(() => setStatus("idle"), 2_000);
+  }, [address]);
+
+  const label =
+    status === "copied"
+      ? "Wallet address copied"
+      : status === "error"
+        ? "Copy failed"
+        : "Copy wallet address";
+
+  return (
+    <button
+      type="button"
+      onClick={handleCopy}
+      aria-label={label}
+      className={cn(
+        "group relative inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 active:scale-95",
+        status === "copied"
+          ? "border-emerald-200 bg-emerald-50 text-emerald-600"
+          : status === "error"
+            ? "border-red-200 bg-red-50 text-red-600"
+            : "border-slate-200 bg-white text-slate-400 shadow-sm hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600"
+      )}
+    >
+      {status === "copied" ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+      <span
+        role="status"
+        aria-live="polite"
+        className={cn(
+          "pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 -translate-x-1/2 whitespace-nowrap rounded-md px-2 py-1 text-[10px] font-medium text-white shadow-lg transition-all duration-150",
+          status === "copied"
+            ? "visible translate-y-0 bg-emerald-600 opacity-100"
+            : status === "error"
+              ? "visible translate-y-0 bg-red-600 opacity-100"
+              : "invisible translate-y-1 bg-slate-900 opacity-0 group-hover:visible group-hover:translate-y-0 group-hover:opacity-100 group-focus-visible:visible group-focus-visible:translate-y-0 group-focus-visible:opacity-100"
+        )}
+      >
+        {status === "copied" ? "Copied" : status === "error" ? "Try again" : "Copy address"}
+      </span>
+    </button>
+  );
+}
 
 export function AppNav() {
   const pathname = usePathname();
@@ -81,6 +166,7 @@ export function AppNav() {
               <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-50">
                 <div className="w-2 h-2 bg-emerald-400 rounded-full flex-shrink-0" />
                 <span className="text-xs font-mono text-slate-700 truncate">{shortAddress(address)}</span>
+                <CopyAddressButton address={address} />
                 <span className="ml-auto text-xs text-slate-400">Arc</span>
               </div>
               <a
@@ -150,6 +236,7 @@ export function AppNav() {
                 <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-slate-50 text-sm">
                   <div className="w-2 h-2 bg-emerald-400 rounded-full" />
                   <span className="font-mono text-slate-700">{shortAddress(address)}</span>
+                  <CopyAddressButton address={address} />
                 </div>
                 <button
                   onClick={handleDisconnect}
